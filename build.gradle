@@ -1,0 +1,41 @@
+plugins {
+    id 'java'
+    id 'eclipse'
+    id 'application'
+	id 'org.springframework.boot' version '2.2.2.RELEASE'
+	id 'io.spring.dependency-management' version '1.0.8.RELEASE'
+    id "com.github.johnrengelman.shadow" version "6.1.0"
+}
+
+repositories {
+    jcenter()
+    mavenCentral()
+
+    maven { url 'https://jitpack.io' }
+    
+    maven { url 'https://mvnrepository.com/artifact/org.springframework/spring-web' }
+}
+
+dependencies {
+	//Guava
+    implementation 'com.google.guava:guava:29.0-jre'
+    
+    //JSON
+    compile group: 'org.json', name: 'json', version: '20200518'
+
+    //HttpLib
+    implementation 'com.github.TheDutchMC:HttpLib:1.1'
+    
+	//Apache Commons
+	compile 'org.apache.commons:commons-lang3:3.11'
+	
+	//All this is Spring
+	compile group: 'org.springframework', name: 'spring-web', version: '5.2.6.RELEASE'
+	compile group: 'org.springframework.boot', name: 'spring-boot-starter-web', version: '2.2.6.RELEASE'
+	implementation 'org.springframework.boot:spring-boot-devtools'
+}
+
+application {
+    // Define the main class for the application.
+    mainClassName = 'nl.thedutchmc.espogmailsync.App'
+}
