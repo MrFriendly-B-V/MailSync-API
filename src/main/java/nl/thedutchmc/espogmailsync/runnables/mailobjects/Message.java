@@ -3,18 +3,38 @@ package nl.thedutchmc.espogmailsync.runnables.mailobjects;
 import java.util.List;
 
 public class Message {	
-	private String id, threadId, epochDate;
+	private String id, threadId, epochDate, messageText, messageHtml;
 	private long epochLong;
-	private MessagePart messagePart;
 	private List<Label> labels;
+	private List<Header> headers;
 	
-	public Message(String id, String threadId, String epochDate, MessagePart messagePart, List<Label> labels) {
+	public Message(String id, String threadId, String epochDate, List<Label> labels, List<Header> headers) {
 		this.id = id;
 		this.threadId = threadId;
 		this.epochDate = epochDate;
-		this.messagePart = messagePart;
+		this.headers = headers;
 		
 		epochLong = Long.valueOf(epochDate);
+	}
+	
+	public String getMessageText() {
+		return this.messageText;
+	}
+	
+	public void setMessageText(String messageText) {
+		this.messageText = messageText;
+	}
+	
+	public String getMessageHtml() {
+		return this.messageHtml;
+	}
+	
+	public void setMessageHtml(String messageHtml) {
+		this.messageHtml = messageHtml;
+	}
+	
+	public List<Header> getHeaders() {
+		return this.headers;
 	}
 	
 	public String getId() {
@@ -27,10 +47,6 @@ public class Message {
 	
 	public String getEpochDate() {
 		return this.epochDate;
-	}
-	
-	public MessagePart getMessagePart() {
-		return this.messagePart;
 	}
 	
 	public List<Label> getLabels() {

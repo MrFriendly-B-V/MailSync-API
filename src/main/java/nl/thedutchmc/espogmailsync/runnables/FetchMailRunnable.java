@@ -127,11 +127,46 @@ public class FetchMailRunnable implements Runnable {
 					
 					//Get the message payload
 					JSONObject messagePayload = messageJson.getJSONObject("payload");
-					MessagePart messagePart = analyseMessagePart(messagePayload);
+					JSONArray payloadParts = messagePayload.getJSONArray("parts");
+					
+					List<JSONObject> results = new ArrayList<>();
+					payloadParts.forEach(oPart -> {
+						JSONObject part = (JSONObject) oPart;
+						
+						//Analyze the body
+						results.addAll(analyzePart(part));
+					});
+					
+					//Analyze the headers
+					JSONArray payloadHeaders = messagePayload.getJSONArray("headers");
+					
+					List<Header> headers = new ArrayList<>();
+					payloadHeaders.forEach(oHeader -> {
+						JSONObject jsonHeader = (JSONObject) oHeader;
+						
+						Header header = new Header(jsonHeader.getString("name"), jsonHeader.getString("value"));
+						headers.add(header);
+					});
+					
+					
+					String messageHtml = "";
+					String messageText = "";
+					for(JSONObject result : results) {
+						if(result.getString("mimeType").equals("text/html")) {
+							messageHtml = result.getJSONObject("body").getString("data");
+						}
+						
+						if(result.getString("mimeType").equals("text/plain")) {
+							messageText = result.getJSONObject("body").getString("data");
+						}
+					}
 					
 					//Add the analysed message to the list of analysed messages and to the list of 
 					//anaylized messages in the current MessageThread
-					Message messageObject = new Message(messageId, threadId, epochDate, messagePart, labels);
+					Message messageObject = new Message(messageId, threadId, epochDate, labels, headers);
+					messageObject.setMessageText(messageText);
+					messageObject.setMessageHtml(messageHtml);
+					
 					analysedMessages.put(messageId, messageObject);
 					messagesInThread.add(messageObject);
 					
@@ -153,46 +188,25 @@ public class FetchMailRunnable implements Runnable {
 		//TODO send this to the database gradually.
 	}
 	
-	private MessagePart analyseMessagePart(JSONObject messagePart) {
-		//Get the headers for this message
-		JSONArray headersJson = messagePart.getJSONArray("headers");
-		List<Header> headers = new ArrayList<>();
-		headersJson.forEach(oHeaderJson -> {
-			JSONObject headerJson = (JSONObject) oHeaderJson;
-			headers.add(new Header(headerJson.getString("name"), headerJson.getString("value")));
-		});
+	private static List<JSONObject> analyzePart(JSONObject partToAnalyze) {
+		List<JSONObject> results = new ArrayList<>();
 		
-		//analyse the body
-		//START OF BODY ANALASYS
-		JSONObject bodyJson = messagePart.getJSONObject("body");
-		
-		String attachmentId = "";
-		String data64 = "";
-		if(bodyJson.has("attachmentId") && !bodyJson.getString("attachmentId").equals("")) {
-			attachmentId = bodyJson.getString("attachmentId");
+		if(partToAnalyze.getJSONObject("body").getInt("size") == 0) {
+			if(partToAnalyze.has("parts")) {
+				JSONArray subParts = partToAnalyze.getJSONArray("parts");
+				for(Object oSubPart : subParts) {
+					JSONObject jsonSubPart = (JSONObject) oSubPart;
+					if(jsonSubPart.getJSONObject("body").getInt("size") != 0) {
+						results.add(jsonSubPart);
+					} else {
+						results.addAll(analyzePart(jsonSubPart));
+					}
+				}
+			}
+		} else {
+			results.add(partToAnalyze);
 		}
 		
-		if(bodyJson.has("data") && !bodyJson.getString("data").equals("")) {
-			data64 = bodyJson.getString("data");
-		}
-		//END OF BODY ANALAYSIS
-		
-		//analyse potential subparts
-		//START OF SUBPARTS ANALASYS
-		List<MessagePart> subparts = new ArrayList<>();
-		if(messagePart.has("parts")) {
-			JSONArray subpartsJson = messagePart.getJSONArray("parts");
-			subpartsJson.forEach(oSubpartJson -> {
-				JSONObject subpartJson = (JSONObject) oSubpartJson;
-				subparts.add(analyseMessagePart(subpartJson));
-			});
-		}
-		//END OF SUBPARTS ANALASYS
-		
-		//Get the MIME type
-		String mimeType = messagePart.getString("mimeType");
-		
-		MessagePart part = new MessagePart(headers, attachmentId, data64, subparts, mimeType);
-		return part;
+		return results;
 	}
 }
