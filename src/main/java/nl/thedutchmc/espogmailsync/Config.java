@@ -18,6 +18,8 @@ public class Config {
 	
 	public static String authServerHost;
 	public static String apiToken;
+	public static String frontendHost;
+	public static String espoHost, espoApiKey, espoSecretKey;
 	
 	private static String configDirPath;
 	public Config() {
@@ -61,6 +63,10 @@ public class Config {
 				JSONObject defaultConfig = new JSONObject();
 				defaultConfig.put("authServerHost", "");
 				defaultConfig.put("apiToken", "");
+				defaultConfig.put("frontendHost", "");
+				defaultConfig.put("espoHost", "");
+				defaultConfig.put("espoApiKey", "");
+				defaultConfig.put("espoSecretKey", "");
 						
 				bw.write(defaultConfig.toString());
 				bw.flush();
@@ -89,6 +95,11 @@ public class Config {
 		
 		authServerHost = configJson.getString("authServerHost");
 		apiToken = configJson.getString("apiToken");
+		frontendHost = configJson.getString("frontendHost");
+		
+		espoHost = configJson.getString("espoHost");
+		espoApiKey = configJson.getString("espoApiKey");
+		espoSecretKey = configJson.getString("espoSecretKey");
 		
 		App.logInfo("Completed reading configuration file.");
 	}
