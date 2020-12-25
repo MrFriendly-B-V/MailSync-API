@@ -1,6 +1,9 @@
-package nl.thedutchmc.espogmailsync.runnables.mailobjects;
+package nl.thedutchmc.espogmailsync.mailobjects;
 
-public class Label {
+import java.io.Serializable;
+
+public class Label implements Serializable {
+	private static final long serialVersionUID = 1L;
 	
 	private String id, name, colorHexText, colorHexBackground;
 	

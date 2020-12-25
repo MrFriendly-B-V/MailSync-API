@@ -33,6 +33,11 @@ dependencies {
 	compile group: 'org.springframework', name: 'spring-web', version: '5.2.6.RELEASE'
 	compile group: 'org.springframework.boot', name: 'spring-boot-starter-web', version: '2.2.6.RELEASE'
 	implementation 'org.springframework.boot:spring-boot-devtools'
+	
+	//MySQL Connector
+    compile ("mysql:mysql-connector-java:8.0.21") {
+    	exclude module: 'protobuf-java'
+    }
 }
 
 application {

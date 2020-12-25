@@ -1,4 +1,4 @@
-package nl.thedutchmc.espogmailsync;
+package nl.thedutchmc.espogmailsync.springcontrollers;
 
 import java.io.IOException;
 import java.net.MalformedURLException;
@@ -12,17 +12,14 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.CrossOrigin;
-import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import nl.thedutchmc.espogmailsync.runnables.EspoSyncRunnable;
-import nl.thedutchmc.espogmailsync.runnables.mailobjects.Header;
-import nl.thedutchmc.espogmailsync.runnables.mailobjects.Label;
-import nl.thedutchmc.espogmailsync.runnables.mailobjects.Message;
-import nl.thedutchmc.espogmailsync.runnables.mailobjects.MessageThread;
+import nl.thedutchmc.espogmailsync.App;
+import nl.thedutchmc.espogmailsync.Config;
+import nl.thedutchmc.espogmailsync.mailobjects.*;
 import nl.thedutchmc.httplib.Http;
 import nl.thedutchmc.httplib.Http.ResponseObject;
 
@@ -44,7 +41,7 @@ public class GetController {
 		//Send a request to the auth server to verify the user
 		ResponseObject responseObject = null;
 		try {
-			 responseObject = new Http().makeRequest(Http.RequestMethod.POST, 
+			 responseObject = new Http(App.DEBUG).makeRequest(Http.RequestMethod.POST, 
 					 Config.authServerHost + "/oauth/token", //Host
 					 params, //URL parameters
 					 null, null, //Body
@@ -169,13 +166,5 @@ public class GetController {
 		finalResult.put("messages", messages);
 		
 		return finalResult.toString();
-	}
-	
-	@GetMapping("test")
-	public String test() {
-		Thread espoSyncThread = new Thread(new EspoSyncRunnable());
-		espoSyncThread.start();
-		
-		return "OK";
 	}
 }

@@ -1,8 +1,11 @@
-package nl.thedutchmc.espogmailsync.runnables.mailobjects;
+package nl.thedutchmc.espogmailsync.mailobjects;
 
+import java.io.Serializable;
 import java.util.List;
 
-public class MessageThread {
+public class MessageThread implements Serializable {
+	private static final long serialVersionUID = 1L;
+	
 	private String id;
 	private List<Message> messages;
 	

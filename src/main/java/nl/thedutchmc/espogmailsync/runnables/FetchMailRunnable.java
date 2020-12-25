@@ -9,8 +9,12 @@ import org.json.JSONObject;
 
 import nl.thedutchmc.espogmailsync.App;
 import nl.thedutchmc.espogmailsync.gmail.GmailApi;
-import nl.thedutchmc.espogmailsync.runnables.mailobjects.*;
+import nl.thedutchmc.espogmailsync.mailobjects.*;
 
+/**
+ * This runnable is used to sync a user with GMail.
+ * This runnable will fetch their new emails and 'order' them into Message objects and MessageThreat objects
+ */
 public class FetchMailRunnable implements Runnable {
 
 	private String token;
@@ -23,6 +27,8 @@ public class FetchMailRunnable implements Runnable {
 
 	@Override
 	public void run() {
+		App.logInfo("Starting Gmail for user " + id + "...");
+		
 		String nextPageToken = "";
 		boolean nextRound = true;
 		boolean firstRound = true;
@@ -162,7 +168,7 @@ public class FetchMailRunnable implements Runnable {
 					}
 					
 					//Add the analysed message to the list of analysed messages and to the list of 
-					//anaylized messages in the current MessageThread
+					//anaylised messages in the current MessageThread
 					Message messageObject = new Message(messageId, threadId, epochDate, labels, headers);
 					messageObject.setMessageText(messageText);
 					messageObject.setMessageHtml(messageHtml);
@@ -172,6 +178,8 @@ public class FetchMailRunnable implements Runnable {
 					
 					App.logDebug("Analysed message: " + messageId + " for user: " + id);
 				}
+				
+				App.logInfo("Sync with GMail for user " + id + " complete.");
 				
 				//Add the analysed Thread to the list of analysed threads
 				MessageThread messageThreadObject = new MessageThread(threadId, messagesInThread);
@@ -185,17 +193,33 @@ public class FetchMailRunnable implements Runnable {
 		App.addAllMessages(analysedMessages);
 		App.addAllThreads(analysedThreads);
 	
-		//TODO send this to the database gradually.
+		//TODO send this to the database
+		Thread databaseMailSyncThread = new Thread(new DatabaseMailSyncRunnable(), "databaseMailSyncRunnable-" + id);
+		databaseMailSyncThread.start();
 	}
 	
+	/**
+	 * This method is used to analyze a MessagePart, and peel it back sort of like you would peel an onion
+	 * @see https://developers.google.com/gmail/api/reference/rest/v1/users.messages#Message.MessagePart
+	 * @param partToAnalyze The part to analyze
+	 * @return a List of MessagePart's with a body inside of them
+	 */
 	private static List<JSONObject> analyzePart(JSONObject partToAnalyze) {
 		List<JSONObject> results = new ArrayList<>();
 		
+		//Check if the body has a size of 0
 		if(partToAnalyze.getJSONObject("body").getInt("size") == 0) {
+			
+			//Check if the part has 'child' parts
 			if(partToAnalyze.has("parts")) {
 				JSONArray subParts = partToAnalyze.getJSONArray("parts");
+				
+				//Iterate over those child parts
 				for(Object oSubPart : subParts) {
 					JSONObject jsonSubPart = (JSONObject) oSubPart;
+					
+					//Check if the child part has a body, if not, go through this method again
+					//If yes, add it to the results
 					if(jsonSubPart.getJSONObject("body").getInt("size") != 0) {
 						results.add(jsonSubPart);
 					} else {
@@ -204,6 +228,7 @@ public class FetchMailRunnable implements Runnable {
 				}
 			}
 		} else {
+			//The part to be analyzed had a body right in the first 'layer'
 			results.add(partToAnalyze);
 		}
 		

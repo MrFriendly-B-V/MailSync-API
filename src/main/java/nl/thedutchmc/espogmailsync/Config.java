@@ -20,6 +20,7 @@ public class Config {
 	public static String apiToken;
 	public static String frontendHost;
 	public static String espoHost, espoApiKey, espoSecretKey;
+	public static String mysqlHost, mysqlDb, mysqlUser, mysqlPassword;
 	
 	private static String configDirPath;
 	public Config() {
@@ -67,7 +68,11 @@ public class Config {
 				defaultConfig.put("espoHost", "");
 				defaultConfig.put("espoApiKey", "");
 				defaultConfig.put("espoSecretKey", "");
-						
+				defaultConfig.put("mysqlHost", "");
+				defaultConfig.put("mysqlDb", "");
+				defaultConfig.put("mysqlUser", "");
+				defaultConfig.put("mysqlPassword", "");
+
 				bw.write(defaultConfig.toString());
 				bw.flush();
 				bw.close();
@@ -100,6 +105,11 @@ public class Config {
 		espoHost = configJson.getString("espoHost");
 		espoApiKey = configJson.getString("espoApiKey");
 		espoSecretKey = configJson.getString("espoSecretKey");
+		
+		mysqlHost = configJson.getString("mysqlHost");
+		mysqlUser = configJson.getString("mysqlUser");
+		mysqlDb = configJson.getString("mysqlDb");
+		mysqlPassword = configJson.getString("mysqlPassword");
 		
 		App.logInfo("Completed reading configuration file.");
 	}

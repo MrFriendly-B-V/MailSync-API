@@ -1,6 +1,9 @@
-package nl.thedutchmc.espogmailsync.runnables.mailobjects;
+package nl.thedutchmc.espogmailsync.mailobjects;
 
-public class Header {
+import java.io.Serializable;
+
+public class Header implements Serializable {
+	private static final long serialVersionUID = 1L;
 	private String name, value;
 	
 	public Header(String name, String value) {
