@@ -18,7 +18,6 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import nl.thedutchmc.espogmailsync.database.DatabaseGetMail;
 import nl.thedutchmc.espogmailsync.database.SqlManager;
 import nl.thedutchmc.espogmailsync.database.SyncMailUsers;
-import nl.thedutchmc.espogmailsync.runnables.DatabaseMailSyncRunnable;
 import nl.thedutchmc.espogmailsync.runnables.EspoSyncRunnable;
 import nl.thedutchmc.espogmailsync.runnables.FetchMailRunnable;
 import nl.thedutchmc.espogmailsync.mailobjects.Message;
@@ -30,13 +29,9 @@ import nl.thedutchmc.httplib.Http.ResponseObject;
 @SpringBootApplication
 public class App {
 
-	public static final boolean DEBUG = false;
+	public static final boolean DEBUG = true;
 	
 	public static List<User> activeUsers = new ArrayList<>();
-	
-	private static HashMap<String, Message> messages = new HashMap<>();
-	private static HashMap<String, MessageThread> messageThreads = new HashMap<>();
-	
 	public static List<String> messagesAnalysed = new ArrayList<>();
 	public static List<String> threadsAnalysed = new ArrayList<>();
 	
@@ -49,16 +44,17 @@ public class App {
     	sqlManager = new SqlManager();
     	
     	DatabaseGetMail dbGetMail = new DatabaseGetMail();
-    	messages = dbGetMail.getMessages();
-    	messageThreads = dbGetMail.getMessageThreads();
-    	
+    	HashMap<String, Message> messages = dbGetMail.getMessages();    	
     	messages.forEach((id, m) -> {
     		messagesAnalysed.add(id);
     	});
+    	messages = null;
     	
+    	HashMap<String, MessageThread> messageThreads = dbGetMail.getMessageThreads();
     	messageThreads.forEach((id, mt) -> {
     		threadsAnalysed.add(id);
     	});
+    	messageThreads = null;
     	
     	final String endpoint = Config.authServerHost + "/oauth/token";
 
@@ -127,32 +123,8 @@ public class App {
     	Thread espoSyncThread = new Thread(new EspoSyncRunnable(), "EspoSyncThread");
     	scheduledExecutor.schedule(() -> espoSyncThread.start(), 5, TimeUnit.MINUTES);
     	
-    	//Schedule the mail sync thread to start in 10 minutes
-    	Thread databaseMailSyncThread = new Thread(new DatabaseMailSyncRunnable(), "DatabaseMailSyncThread");
-    	scheduledExecutor.schedule(() -> databaseMailSyncThread.start(), 10, TimeUnit.MINUTES);
-    	
 		//Start the Spring boot server
 		SpringApplication.run(App.class, args);
-    }
-    
-    public static void addAllMessages(HashMap<String, Message> messages) {
-    	App.messages.putAll(messages);
-    }
-    
-    public static void addAllThreads(HashMap<String, MessageThread> threads) {
-    	App.messageThreads.putAll(threads);
-    }
-    
-    public static HashMap<String, Message> getMessages() {
-    	return App.messages;
-    }
-    
-    public static MessageThread getMessageThread(String threadId) {
-    	return App.messageThreads.get(threadId);
-    }
-    
-    public static HashMap<String, MessageThread> getMessageThreads() {
-    	return App.messageThreads;
     }
     
     public static SqlManager getSqlManager() {
@@ -162,23 +134,23 @@ public class App {
 	public static void logDebug(Object log) {
 		if(!DEBUG) return;
 		
-		//kk:mm:ss --> hour:minute:seconds, without hours going 0-24
+		//kk:mm:ss --> hour:minute:seconds, hours using 24hr clock
 		final DateTimeFormatter f = DateTimeFormatter.ofPattern("kk:mm:ss");
 		LocalDateTime now = LocalDateTime.now();
-		System.out.println("[" + now.format(f) + "][DEBUG] " + log.toString());
+		System.out.println("[" + now.format(f) + "][DEBUG] " + log);
 	}
 	
 	public static void logInfo(Object log) {
-		//kk:mm:ss --> hour:minute:seconds, without hours going 0-24
+		//kk:mm:ss --> hour:minute:seconds, hours using 24hr clock
 		final DateTimeFormatter f = DateTimeFormatter.ofPattern("kk:mm:ss");
 		LocalDateTime now = LocalDateTime.now();
-		System.out.println("[" + now.format(f) + "][INFO] " + log.toString());
+		System.out.println("[" + now.format(f) + "][INFO] " + log);
 	}
 	
 	public static void logError(Object log) {
-		//kk:mm:ss --> hour:minute:seconds, without hours going 0-24
+		//kk:mm:ss --> hour:minute:seconds, hours using 24hr clock
 		final DateTimeFormatter f = DateTimeFormatter.ofPattern("kk:mm:ss");
 		LocalDateTime now = LocalDateTime.now();
-		System.err.println("[" + now.format(f) + "][ERROR] " + log.toString());
+		System.err.println("[" + now.format(f) + "][ERROR] " + log);
 	}   
 }

@@ -3,7 +3,6 @@ package nl.thedutchmc.espogmailsync.runnables;
 import java.sql.Blob;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
-import java.util.ArrayList;
 import java.util.List;
 
 import javax.sql.rowset.serial.SerialBlob;
@@ -14,25 +13,31 @@ import nl.thedutchmc.espogmailsync.App;
 import nl.thedutchmc.espogmailsync.database.Serializer;
 import nl.thedutchmc.espogmailsync.database.SqlManager;
 import nl.thedutchmc.espogmailsync.database.StatementType;
+import nl.thedutchmc.espogmailsync.mailobjects.Header;
 import nl.thedutchmc.espogmailsync.mailobjects.Message;
 import nl.thedutchmc.espogmailsync.mailobjects.MessageThread;
 
 /**
  * This runnable is used to sync fetched emails with a SQL database
  */
+
 public class DatabaseMailSyncRunnable implements Runnable {
+	
+	private List<Message> messages;
+	private List<MessageThread> messageThreads;
+	
+	public DatabaseMailSyncRunnable(List<Message> messages, List<MessageThread> messageThreads) {
+		this.messages = messages;
+		this.messageThreads = messageThreads;
+	}
 	
 	@Override
  	public void run() {
 		App.logInfo("Starting sync with Database for Messages and MessageThreads...");
 		
-		//Turn the HashMaps in Apps into Lists, we don't care for the keys
-		List<Message> messages = new ArrayList<>(App.getMessages().values());
-		List<MessageThread> messageThreads = new ArrayList<>(App.getMessageThreads().values());
-		
 		Serializer ser = new Serializer();
 		SqlManager sqlManager = App.getSqlManager();
-		
+				
 		//Iterate over all Messages
 		for(int i = 0; i < messages.size(); i++) {
 			Message m = messages.get(i);
@@ -44,10 +49,20 @@ public class DatabaseMailSyncRunnable implements Runnable {
 				//Create a blob out of the serialized Message
 				Blob mBlob = new SerialBlob(mSerialized);
 				
+				String sender = "";
+				for(Header h : m.getHeaders()) {
+					if(h.getName().equals("From")) sender = h.getValue();
+				}
+				
+				String senderFormatted = sender.split("<")[1].split(">")[0];
+				App.logInfo(senderFormatted);
+				
 				//Prepare a statement to execute
-				PreparedStatement preparedStatement = sqlManager.getConnection().prepareStatement("REPLACE INTO messages (id, data) VALUES (?, ?)");
+				PreparedStatement preparedStatement = sqlManager.getConnection().prepareStatement("REPLACE INTO messages (id, gmailId, sender, data) VALUES (?, ?, ?, ?)");
 				preparedStatement.setInt(1, i);
-				preparedStatement.setBlob(2, mBlob);
+				preparedStatement.setString(2, m.getId());
+				preparedStatement.setString(3, senderFormatted);
+				preparedStatement.setBlob(4, mBlob);
 				
 				//Execute the statement
 				sqlManager.executeStatement(StatementType.update, preparedStatement);
@@ -71,9 +86,10 @@ public class DatabaseMailSyncRunnable implements Runnable {
 				Blob mtBlob = new SerialBlob(mtSerialized);
 				
 				//Prepare a statement to execute
-				PreparedStatement preparedStatement = sqlManager.getConnection().prepareStatement("REPLACE INTO messageThreads (id, data) VALUES (?, ?)");
+				PreparedStatement preparedStatement = sqlManager.getConnection().prepareStatement("REPLACE INTO messageThreads (id, gmailId, data) VALUES (?, ?, ?)");
 				preparedStatement.setInt(1, i);
-				preparedStatement.setBlob(2, mtBlob);
+				preparedStatement.setString(2, mt.getId());
+				preparedStatement.setBlob(3, mtBlob);
 				
 				//Execute the statement
 				App.getSqlManager().executeStatement(StatementType.update, preparedStatement);

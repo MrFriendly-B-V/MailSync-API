@@ -189,12 +189,9 @@ public class FetchMailRunnable implements Runnable {
 		
 		//We've analysed the entire inbox.
 		App.logInfo("Analysed entire inbox for " + id + ". Total new message count: " + analysedMessages.size() + ". Total new MessageThreads: " + analysedThreads.size() + ".");
-		
-		App.addAllMessages(analysedMessages);
-		App.addAllThreads(analysedThreads);
-	
-		//TODO send this to the database
-		Thread databaseMailSyncThread = new Thread(new DatabaseMailSyncRunnable(), "databaseMailSyncRunnable-" + id);
+
+		//Sync to the database
+		Thread databaseMailSyncThread = new Thread(new DatabaseMailSyncRunnable(new ArrayList<>(analysedMessages.values()), new ArrayList<>(analysedThreads.values())), "databaseMailSyncRunnable-" + id);
 		databaseMailSyncThread.start();
 	}
 	

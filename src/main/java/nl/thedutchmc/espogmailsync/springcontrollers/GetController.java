@@ -3,6 +3,10 @@ package nl.thedutchmc.espogmailsync.springcontrollers;
 import java.io.IOException;
 import java.net.MalformedURLException;
 import java.nio.charset.StandardCharsets;
+import java.sql.Blob;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -19,6 +23,10 @@ import org.springframework.web.bind.annotation.RestController;
 
 import nl.thedutchmc.espogmailsync.App;
 import nl.thedutchmc.espogmailsync.Config;
+import nl.thedutchmc.espogmailsync.database.Serializer;
+import nl.thedutchmc.espogmailsync.database.ResultObject;
+import nl.thedutchmc.espogmailsync.database.SqlManager;
+import nl.thedutchmc.espogmailsync.database.StatementType;
 import nl.thedutchmc.espogmailsync.mailobjects.*;
 import nl.thedutchmc.httplib.Http;
 import nl.thedutchmc.httplib.Http.ResponseObject;
@@ -29,8 +37,7 @@ public class GetController {
 
 	@CrossOrigin(origins = "https://intern.mrfriendly.nl")
 	@RequestMapping(value = "mail", method = RequestMethod.GET, produces = MediaType.APPLICATION_JSON_VALUE)
-	public String mail(@RequestParam String sessionId, @RequestParam(required = false) String senderDomain, @RequestParam(required = false) String mailId) {
-		
+	public String mail(@RequestParam String sessionId, @RequestParam(required = false) String senderAddress, @RequestParam(required = false) String mailId) {
 		// ----------------------------
 		// BEGIN OF USER AUTHENTICATION
 		// ----------------------------
@@ -69,9 +76,61 @@ public class GetController {
 		// --------------------------
 
 		
+		List<Message> messagesList = new ArrayList<>();
+		
+		//Pull mails from the db for these email addresses or mail ids
+		try {
+			if(senderAddress != null) {
+			
+				SqlManager sql = App.getSqlManager();
+				Serializer serializer = new Serializer();
+				
+				String[] addresses = senderAddress.split(",");
+	
+				String stmt = "SELECT data FROM messages";
+				for(int i = 0; i < addresses.length; i++) {
+					if(i == 0) {
+						stmt += " WHERE sender='" + addresses[i] + "'";
+					} else {
+						stmt += " OR sender='" + addresses[i] + "'";
+					}
+				}
+								
+				PreparedStatement preparedStatement = sql.getConnection().prepareStatement(stmt);
+				ResultObject ro = sql.executeStatement(StatementType.query, preparedStatement);
+				ResultSet rs = ro.getResultSet();
+				
+				while(rs.next()) {
+					Blob mBlob = rs.getBlob("data");
+					byte[] mBytes = mBlob.getBytes(1, (int) mBlob.length());
+					Message m = (Message) serializer.deserializeObject(mBytes); 
+					messagesList.add(m);
+				}
+			}
+						
+			if(mailId != null) {
+				SqlManager sql = App.getSqlManager();
+				Serializer serializer = new Serializer();
+				
+				PreparedStatement preparedStatement = sql.getConnection().prepareStatement("SELECT data FROM messages WHERE gmailId=?");
+				preparedStatement.setString(1, mailId);
+				ResultObject ro = sql.executeStatement(StatementType.query, preparedStatement);
+				ResultSet rs = ro.getResultSet();
+				
+				while(rs.next()) {
+					Blob mBlob = rs.getBlob("data");
+					byte[] mBytes = mBlob.getBytes(1, (int) mBlob.length());
+					Message m = (Message) serializer.deserializeObject(mBytes); 
+					messagesList.add(m);
+				}
+			}
+		} catch (SQLException e) {
+			App.logDebug(ExceptionUtils.getStackTrace(e));
+		}
+		
 		JSONObject finalResult = new JSONObject();
 		JSONArray messages = new JSONArray();
-		for(Message message : App.getMessages().values()) {
+		for(Message message : messagesList) {
 			JSONObject result = new JSONObject();
 			result.put("epoch_date", message.getEpochDate());
 			result.put("id", message.getId());
@@ -92,8 +151,35 @@ public class GetController {
 				result.put("labels", labels);
 			}
 			
+			//Get the MessageThread associated with this message from the database
+			MessageThread messageThread = null;
+			try {				
+				SqlManager sql = App.getSqlManager();
+
+				PreparedStatement preparedStatement = sql.getConnection().prepareStatement("SELECT data FROM messageThreads WHERE gmailId=?");
+				preparedStatement.setString(1, message.getId());
+				
+				ResultObject ro = sql.executeStatement(StatementType.query, preparedStatement);
+				ResultSet rs = ro.getResultSet();
+				
+				Serializer serializer = new Serializer();
+				
+				while(rs.next()) {
+					Blob mtBlob = rs.getBlob("data");
+					byte[] mtBytes = mtBlob.getBytes(1, (int) mtBlob.length());
+					MessageThread mt = (MessageThread) serializer.deserializeObject(mtBytes);
+					messageThread = mt;
+				}
+			} catch(SQLException e) {
+				App.logDebug(ExceptionUtils.getStackTrace(e));
+			}
+			
+			if(messageThread == null) {
+				App.logError("mt == null");
+			}
+			
 			//Get the next and previous message for this message
-			MessageThread messageThread = App.getMessageThread(message.getThreadId());
+			//MessageThread messageThread = App.getMessageThread(message.getThreadId());
 			result.put("thread_id", messageThread.getId());
 			
 			//Get all the epoch times in the mail Thread and put them in a HashMap
@@ -148,16 +234,6 @@ public class GetController {
 					break;
 				}
 			}	
-			
-			//If the senderDomain has been given, we only want to return emails from that domain
-			if(senderDomain != null) {
-				String fromDomain = result.getString("from").split("<")[1].split("@")[1].replace(">", "");
-				if(!fromDomain.equalsIgnoreCase(senderDomain)) continue;
-			}
-			
-			if(mailId != null) {
-				if(!mailId.equals(result.getString("id"))) continue;
-			}
 			
 			messages.put(result);
 		}
