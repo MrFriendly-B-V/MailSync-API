@@ -18,10 +18,9 @@ public class DatabaseGetMail {
 	 * @return Returns a HashMap of the ID of the message, and the Message object
 	 */
 	public HashMap<String, Message> getMessages() {
-		App.logInfo("Fetching all Messages from database...");
-		
+		App.logInfo("Fetching all Messages from database...  (this may take a while!)");
+		 
 		SqlManager sqlManager = App.getSqlManager();
-		Serializer serializer = new Serializer();
 		
 		HashMap<String, Message> result = new HashMap<>();
 		try {
@@ -37,7 +36,7 @@ public class DatabaseGetMail {
 				//Turn the blob back into a Message object
 				Blob mBlob = rs.getBlob("data");
 				byte[] mBytes = mBlob.getBytes(1, (int) mBlob.length());
-				Message m = (Message) serializer.deserializeObject(mBytes);
+				Message m = (Message) Serializer.deserializeObject(mBytes);
 				
 				//Add the Message object to the result map
 				result.put(m.getId(), m);
@@ -56,10 +55,9 @@ public class DatabaseGetMail {
 	 * @return Returns a HashMap with the ID of the MessageThread, and the MessageThread
 	 */
 	public HashMap<String, MessageThread> getMessageThreads() {
-		App.logInfo("Fetching all MessageThreads from database...");
+		App.logInfo("Fetching all MessageThreads from database...  (this may take a while!)");
 		
 		SqlManager sqlManager = App.getSqlManager();
-		Serializer serializer = new Serializer();
 		
 		HashMap<String, MessageThread> result = new HashMap<>();
 		try {
@@ -75,7 +73,7 @@ public class DatabaseGetMail {
 				//Deserialize the blob back into a MessageThread object
 				Blob mtBlob = rs.getBlob("data");
 				byte[] mtBytes = mtBlob.getBytes(1, (int) mtBlob.length());
-				MessageThread mt = (MessageThread) serializer.deserializeObject(mtBytes);
+				MessageThread mt = (MessageThread) Serializer.deserializeObject(mtBytes);
 				
 				//Add the MessageThread object to the result map
 				result.put(mt.getId(), mt);

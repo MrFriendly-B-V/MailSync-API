@@ -18,7 +18,7 @@ public class Serializer {
 	 * @param object Object to serialize, must implement Serializable
 	 * @return Returns the serialized object as a byte[]
 	 */
-	public byte[] serializeObject(Serializable object) {
+	public static byte[] serializeObject(Serializable object) {
 		ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
 		ObjectOutputStream out = null; 
 		
@@ -50,7 +50,7 @@ public class Serializer {
 	 * @param input Byte[] of the serialized object
 	 * @return Returns deserialized object 
 	 */
-	public Object deserializeObject(byte[] input) {
+	public static Object deserializeObject(byte[] input) {
 		ByteArrayInputStream byteIn = new ByteArrayInputStream(input);
 		ObjectInputStream in = null;
 		

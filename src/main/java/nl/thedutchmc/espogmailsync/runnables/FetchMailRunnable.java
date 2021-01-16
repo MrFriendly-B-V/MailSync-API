@@ -3,7 +3,6 @@ package nl.thedutchmc.espogmailsync.runnables;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
-
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -20,9 +19,14 @@ public class FetchMailRunnable implements Runnable {
 	private String token;
 	private String id;
 	
+	private boolean done = false;
+	
 	public FetchMailRunnable(String token, String id) {
 		this.token = token;
 		this.id = id;
+		
+		Thread updateTokenThread = new Thread(new UpdateTokenRunnable(this, id));
+    	updateTokenThread.start();
 	}
 
 	@Override
@@ -32,7 +36,7 @@ public class FetchMailRunnable implements Runnable {
 		String nextPageToken = "";
 		boolean nextRound = true;
 		boolean firstRound = true;
-		GmailApi api = new GmailApi();
+		GmailApi api = new GmailApi(id);
 		
 		HashMap<String, Message> analysedMessages = new HashMap<>();
 		HashMap<String, MessageThread> analysedThreads = new HashMap<>();
@@ -45,10 +49,10 @@ public class FetchMailRunnable implements Runnable {
 			//First we fetch all messages on this page
 			JSONObject responseJson = null;
 			if(firstRound) {
-				responseJson = api.UserHistoryList(token, null);				
+				responseJson = api.userHistoryList(token, null);				
 				firstRound = false;
 	 		} else {
-	 			responseJson = api.UserHistoryList(token, nextPageToken);
+	 			responseJson = api.userHistoryList(token, nextPageToken);
 	 		}
 			
 			//Check if a nextPageToken is included,
@@ -74,7 +78,7 @@ public class FetchMailRunnable implements Runnable {
 				App.threadsAnalysed.add(threadId);
 				
 				//Fetch information about the thread from Google
-				JSONObject threadJson = api.UserThreadsGet(token, threadId);
+				JSONObject threadJson = api.userThreadsGet(token, threadId);
 				JSONArray threadMessages = threadJson.getJSONArray("messages");
 				
 				List<Message> messagesInThread = new ArrayList<>();
@@ -95,37 +99,39 @@ public class FetchMailRunnable implements Runnable {
 					App.messagesAnalysed.add(messageId);
 					
 					//Get details about this specific message from Google
-					JSONObject messageJson = api.UserMessagesGet(token, messageId);
+					JSONObject messageJson = api.userMessagesGet(token, messageId);
 					
-					App.logDebug(messageJson);
+					//App.logDebug(messageJson);
 					
 					//Get all the labels associated with this message
 					//Put them in the `labels` list
-					JSONArray labelsIdsJson = messageJson.getJSONArray("labelIds");
 					List<Label> labels = new ArrayList<>();
-					for(Object oLabelId : labelsIdsJson) {
-						String labelId = (String) oLabelId;
-						
-						JSONObject labelJson = api.UserLabelsGet(token, labelId);
-						
-						String textColor = "";
-						String backgroundColor = "";
-						if(labelJson.has("color")) {
-							JSONObject labelColor = labelJson.getJSONObject("color");
+					if(messageJson.has("labelIds")) {
+						JSONArray labelsIdsJson = messageJson.getJSONArray("labelIds");
+						for(Object oLabelId : labelsIdsJson) {
+							String labelId = (String) oLabelId;
+							
+							JSONObject labelJson = api.userLabelsGet(token, labelId);
+							
+							String textColor = "";
+							String backgroundColor = "";
+							if(labelJson.has("color")) {
+								JSONObject labelColor = labelJson.getJSONObject("color");
 
-							textColor = labelColor.getString("textColor");
-							backgroundColor = labelColor.getString("backgroundColor");
+								textColor = labelColor.getString("textColor");
+								backgroundColor = labelColor.getString("backgroundColor");
+							}
+							
+							Label label = new Label(
+									labelId, 
+									labelJson.getString("name"), 
+									textColor, 
+									backgroundColor);
+							
+							labels.add(label);
 						}
-						
-						Label label = new Label(
-								labelId, 
-								labelJson.getString("name"), 
-								textColor, 
-								backgroundColor);
-						
-						labels.add(label);
+						//TODO fetch label information
 					}
-					//TODO fetch label information
 					
 					//Get the time the message was accepted by google,
 					//so when it was 'received'
@@ -133,15 +139,22 @@ public class FetchMailRunnable implements Runnable {
 					
 					//Get the message payload
 					JSONObject messagePayload = messageJson.getJSONObject("payload");
-					JSONArray payloadParts = messagePayload.getJSONArray("parts");
 					
 					List<JSONObject> results = new ArrayList<>();
-					payloadParts.forEach(oPart -> {
-						JSONObject part = (JSONObject) oPart;
+					if(!messagePayload.has("parts")) {
+						if(messagePayload.has("body") && messagePayload.getJSONObject("body").getInt("size") != 0) {
+							results.add(messagePayload);
+						}
+					} else {
+						JSONArray payloadParts = messagePayload.getJSONArray("parts");
 						
-						//Analyze the body
-						results.addAll(analyzePart(part));
-					});
+						payloadParts.forEach(oPart -> {
+							JSONObject part = (JSONObject) oPart;
+							
+							//Analyze the body
+							results.addAll(analyzePart(part));
+						});
+					}
 					
 					//Analyze the headers
 					JSONArray payloadHeaders = messagePayload.getJSONArray("headers");
@@ -154,16 +167,19 @@ public class FetchMailRunnable implements Runnable {
 						headers.add(header);
 					});
 					
-					
 					String messageHtml = "";
 					String messageText = "";
 					for(JSONObject result : results) {
 						if(result.getString("mimeType").equals("text/html")) {
-							messageHtml = result.getJSONObject("body").getString("data");
+							if(result.getJSONObject("body").has("data")) {
+								messageHtml = result.getJSONObject("body").getString("data");
+							}
 						}
 						
 						if(result.getString("mimeType").equals("text/plain")) {
-							messageText = result.getJSONObject("body").getString("data");
+							if(result.getJSONObject("body").has("data")) {
+								messageText = result.getJSONObject("body").getString("data");
+							}
 						}
 					}
 					
@@ -178,18 +194,34 @@ public class FetchMailRunnable implements Runnable {
 					
 					App.logDebug("Analysed message: " + messageId + " for user: " + id);
 				}
-				
-				App.logInfo("Sync with GMail for user " + id + " complete.");
-				
+								
 				//Add the analysed Thread to the list of analysed threads
 				MessageThread messageThreadObject = new MessageThread(threadId, messagesInThread);
 				analysedThreads.put(threadId, messageThreadObject);
+				
+				App.logDebug("Analysed Thread: " + threadId + " for user: " + id);
+				
+				Thread databaseMailSyncThread = new Thread(new DatabaseMailSyncRunnable(new ArrayList<>(analysedMessages.values()), new ArrayList<>(analysedThreads.values())), "databaseMailSyncRunnable-" + id);
+				databaseMailSyncThread.start();
+				
+				analysedMessages.clear();
+				analysedThreads.clear();
+			}
+			
+			try {
+				Thread.sleep(250);
+			} catch (InterruptedException e) {
+				e.printStackTrace();
 			}
 		}
+		
+		App.logInfo("Sync with GMail for user " + id + " complete.");
 		
 		//We've analysed the entire inbox.
 		App.logInfo("Analysed entire inbox for " + id + ". Total new message count: " + analysedMessages.size() + ". Total new MessageThreads: " + analysedThreads.size() + ".");
 
+		done = true;
+		
 		//Sync to the database
 		Thread databaseMailSyncThread = new Thread(new DatabaseMailSyncRunnable(new ArrayList<>(analysedMessages.values()), new ArrayList<>(analysedThreads.values())), "databaseMailSyncRunnable-" + id);
 		databaseMailSyncThread.start();
@@ -230,5 +262,13 @@ public class FetchMailRunnable implements Runnable {
 		}
 		
 		return results;
+	}
+	
+	public void setToken(String token) {
+		this.token = token;
+	}
+	
+	public boolean getDone() {
+		return this.done;
 	}
 }

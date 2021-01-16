@@ -40,7 +40,7 @@ public class EspoSyncRunnable implements Runnable {
 		
 		//Parameters for the request
 		HashMap<String, String> params = new HashMap<>();
-		params.put("select", "id");
+		params.put("select", "id,emailAddress");
 		
 		//Headers for the request
 		HashMap<String, String> headers = new HashMap<>();
@@ -49,7 +49,7 @@ public class EspoSyncRunnable implements Runnable {
 		//Make a request to Espo for all the Accounts (relations) it knows about
 		ResponseObject response = null;
 		try {
-			response = new Http(App.DEBUG).makeRequest(
+			response = new Http(true).makeRequest(
 					RequestMethod.GET, 
 					listAccountsUri,
 					params, 
@@ -85,6 +85,11 @@ public class EspoSyncRunnable implements Runnable {
 			
 			List<String> accountEmails = new ArrayList<>();
 			
+			if(!jsonListItem.isNull("emailAddress")) {
+				String email = jsonListItem.getString("emailAddress");
+				accountEmails.add(email);
+			}
+
 			//Make a request to Espo to get all contacts associated with this Account (relation)
 			JSONArray jsonContactList = getContactsForAccount(id);
 			
@@ -100,6 +105,28 @@ public class EspoSyncRunnable implements Runnable {
 				
 				//Add the email address of this Contact to the list of the Account (relation)
 				accountEmails.add(jsonContact.getString("emailAddress"));
+								
+				//For every contact we also add a link, with just the email of that contact
+				JSONObject putContactMail = new JSONObject();
+				putContactMail.put("mailSync", Config.frontendHost + "/espogmailsync/all-mail.php?addresses=" + jsonContact.getString("emailAddress"));
+				
+				HashMap<String, String> putHeaders = new HashMap<>();
+				putHeaders.put("X-Hmac-Authorization", getHmacAuthorization("PUT", "Contact/" + jsonContact.getString("id")));
+				
+				String targetUri = Config.espoHost + "/api/v1/Contact/" + jsonContact.getString("id");
+				
+				try {
+					new Http(App.DEBUG).makeRequest(RequestMethod.PUT,
+							targetUri, 
+							null, 
+							MediaFormat.JSON, 
+							putContactMail.toString(), 
+							putHeaders);
+				} catch (MalformedURLException e) {
+					e.printStackTrace();
+				} catch (IOException e) {
+					e.printStackTrace();
+				}
 			}
 			
 			//If there were no email addresses added, continue to the next Account (relation)
@@ -193,7 +220,7 @@ public class EspoSyncRunnable implements Runnable {
 		//EspoCRM uses PHP's way of encoding. 
 		//TODO write a function that does this too
 		//Decoded: select=emailAddress&where[0][type]=linkedWith&where[0][attribute]=account&where[0][value]=ACCOUNTID
-		String params = "select=emailAddress&where%5B0%5D%5Btype%5D=linkedWith&where%5B0%5D%5Battribute%5D=account&where%5B0%5D%5Bvalue%5D=" + accountId;
+		String params = "select=id,emailAddress&where%5B0%5D%5Btype%5D=linkedWith&where%5B0%5D%5Battribute%5D=account&where%5B0%5D%5Bvalue%5D=" + accountId;
 
 		//TODO this does not work, blame the parser
 		/*List<Object> where = new LinkedList<>();

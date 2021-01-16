@@ -29,7 +29,7 @@ import nl.thedutchmc.httplib.Http.ResponseObject;
 @SpringBootApplication
 public class App {
 
-	public static final boolean DEBUG = true;
+	public static final boolean DEBUG = false;
 	
 	public static List<User> activeUsers = new ArrayList<>();
 	public static List<String> messagesAnalysed = new ArrayList<>();
@@ -122,6 +122,7 @@ public class App {
     	//Schedule the Espo sync thread to start in 5 minutes
     	Thread espoSyncThread = new Thread(new EspoSyncRunnable(), "EspoSyncThread");
     	scheduledExecutor.schedule(() -> espoSyncThread.start(), 5, TimeUnit.MINUTES);
+    	//espoSyncThread.start();
     	
 		//Start the Spring boot server
 		SpringApplication.run(App.class, args);
