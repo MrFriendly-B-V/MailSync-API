@@ -14,6 +14,7 @@ import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.json.JSONObject;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.context.annotation.PropertySource;
 
 import nl.thedutchmc.espogmailsync.database.DatabaseGetMail;
 import nl.thedutchmc.espogmailsync.database.SqlManager;
@@ -27,6 +28,7 @@ import nl.thedutchmc.httplib.Http.RequestMethod;
 import nl.thedutchmc.httplib.Http.ResponseObject;
 
 @SpringBootApplication
+@PropertySource("classpath:application.properties")
 public class App {
 
 	public static final boolean DEBUG = false;
