@@ -37,7 +37,7 @@ import nl.thedutchmc.httplib.Http.ResponseObject;
 @RequestMapping("/espogmailsync")
 public class GetController {
 
-	@CrossOrigin(origins = "https://intern.mrfriendly.nl")
+	@CrossOrigin(origins = {"https://intern.mrfriendly.nl", "http://localhost"})
 	@RequestMapping(value = "mail", method = RequestMethod.GET, produces = MediaType.APPLICATION_JSON_VALUE)
 	public String mail(@RequestParam String sessionId, @RequestParam(required = false) String senderAddress, @RequestParam(required = false) String mailId, @RequestParam(required = false) String page) {
 		// ----------------------------

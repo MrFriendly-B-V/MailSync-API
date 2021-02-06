@@ -8,6 +8,7 @@ import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.springframework.http.MediaType;
+import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -25,6 +26,7 @@ import nl.thedutchmc.httplib.Http.ResponseObject;
 @RequestMapping("/espogmailsync")
 public class PostController {
 	
+	@CrossOrigin(origins = {"https://intern.mrfriendly.nl", "http://localhost"})
 	@RequestMapping(value = "active", method = RequestMethod.POST, produces = MediaType.APPLICATION_JSON_VALUE)
 	public String getActive(@RequestParam String sessionId) {
 		
@@ -45,6 +47,7 @@ public class PostController {
 				.toString();
 	}
 	
+	@CrossOrigin(origins = {"https://intern.mrfriendly.nl", "http://localhost"})
 	@RequestMapping(value = "new", method = RequestMethod.POST, produces = MediaType.APPLICATION_JSON_VALUE)
 	public String postNew(@RequestParam String sessionId) {
 		String strAuthResponse = checkAuth(sessionId);
