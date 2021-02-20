@@ -3,6 +3,9 @@ package nl.thedutchmc.espogmailsync.runnables;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -213,6 +216,11 @@ public class FetchMailRunnable implements Runnable {
 			} catch (InterruptedException e) {
 				e.printStackTrace();
 			}
+			
+			//Schedule the thread to run again in 6 hours
+			Thread fetchMailThread = new Thread(new FetchMailRunnable(this.token, this.id));
+	    	final ScheduledThreadPoolExecutor scheduledExecutor = new ScheduledThreadPoolExecutor(3);
+	    	scheduledExecutor.schedule(() -> fetchMailThread, 6, TimeUnit.HOURS);
 		}
 		
 		App.logInfo("Sync with GMail for user " + id + " complete.");

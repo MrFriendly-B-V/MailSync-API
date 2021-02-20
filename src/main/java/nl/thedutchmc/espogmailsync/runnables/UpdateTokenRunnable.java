@@ -24,7 +24,6 @@ public class UpdateTokenRunnable implements Runnable {
 	@Override
 	public void run() {
 		while(!fetchMailRunnable.getDone()) {
-			
 			App.logInfo("Updating token for user: " + userId);
 						
 			HashMap<String, String> params = new HashMap<>();

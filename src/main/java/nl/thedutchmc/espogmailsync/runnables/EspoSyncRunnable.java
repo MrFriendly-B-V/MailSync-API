@@ -9,6 +9,8 @@ import java.util.Arrays;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
@@ -182,6 +184,10 @@ public class EspoSyncRunnable implements Runnable {
 		}
 		
 		App.logInfo("Sync complete.");
+		
+		Thread espoSyncThread = new Thread(new EspoSyncRunnable());
+    	final ScheduledThreadPoolExecutor scheduledExecutor = new ScheduledThreadPoolExecutor(3);
+    	scheduledExecutor.schedule(() -> espoSyncThread, 6, TimeUnit.HOURS);
 	}
 	
 	/**
