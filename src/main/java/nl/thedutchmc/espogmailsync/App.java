@@ -1,137 +1,173 @@
 package nl.thedutchmc.espogmailsync;
 
-import java.io.IOException;
-import java.net.MalformedURLException;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
-import org.apache.commons.lang3.exception.ExceptionUtils;
-import org.json.JSONObject;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.PropertySource;
 
-import nl.thedutchmc.espogmailsync.database.DatabaseGetMail;
 import nl.thedutchmc.espogmailsync.database.SqlManager;
-import nl.thedutchmc.espogmailsync.database.SyncMailUsers;
-import nl.thedutchmc.espogmailsync.runnables.EspoSyncRunnable;
-import nl.thedutchmc.espogmailsync.runnables.FetchMailRunnable;
-import nl.thedutchmc.espogmailsync.mailobjects.Message;
-import nl.thedutchmc.espogmailsync.mailobjects.MessageThread;
-import nl.thedutchmc.httplib.Http;
-import nl.thedutchmc.httplib.Http.RequestMethod;
-import nl.thedutchmc.httplib.Http.ResponseObject;
+import nl.thedutchmc.espogmailsync.runnables.EspoAccountSyncRunnableV2;
+import nl.thedutchmc.espogmailsync.runnables.EspoContactSyncRunnableV2;
+import nl.thedutchmc.espogmailsync.runnables.FetchMailThreadV2;
 
 @SpringBootApplication
 @PropertySource("classpath:application.properties")
 public class App {
 
-	public static final boolean DEBUG = false;
-	
-	public static List<User> activeUsers = new ArrayList<>();
-	public static List<String> messagesAnalysed = new ArrayList<>();
-	public static List<String> threadsAnalysed = new ArrayList<>();
+	public static volatile boolean DEBUG = false;
+	public static volatile boolean RUNNING = true;
 	
 	private static SqlManager sqlManager;
-		
+	private static Environment environment;	
+	
     public static void main(String[] args) {
     	
-    	new Config().readConfig();
+    	App.sqlManager = new SqlManager();
+    	App.environment = new Environment();
     	
-    	sqlManager = new SqlManager();
+    	App.logInfo("Running preflight checks...");
     	
-    	DatabaseGetMail dbGetMail = new DatabaseGetMail();
-    	HashMap<String, Message> messages = dbGetMail.getMessages();    	
-    	messages.forEach((id, m) -> {
-    		messagesAnalysed.add(id);
-    	});
-    	messages = null;
+    	//Check debug mode
+    	String debugModeStr = System.getenv("DEBUG");
+    	if(debugModeStr.equalsIgnoreCase("true")) {
+    		App.logInfo("Environmental variable 'DEBUG' set to true. Running with DEBUG level logging!");
+    		App.DEBUG = true;
+    	}
     	
-    	HashMap<String, MessageThread> messageThreads = dbGetMail.getMessageThreads();
-    	messageThreads.forEach((id, mt) -> {
-    		threadsAnalysed.add(id);
-    	});
-    	messageThreads = null;
+    	//Read and check environmental variables
+    	String authApiToken = System.getenv("AUTH_API_TOKEN");
+    	if(authApiToken != null) {
+    		App.environment.setAuthApiToken(authApiToken);
+    	} else {
+    		App.logError("Environmental variable 'AUTH_API_TOKEN' not defined!");
+    		System.exit(1);
+    	}
     	
-    	final String endpoint = Config.authServerHost + "/oauth/token";
-
-    	SyncMailUsers smu = new SyncMailUsers();
-    	String[] ids = smu.getMailUsers();
-    	for(String id : ids) {
-        	final HashMap<String, String> params = new HashMap<>();
-        	params.put("apiToken", Config.apiToken);
-        	params.put("userId", id);
-        	
-        	ResponseObject responseObject = null;
-        	try {
-        		responseObject = new Http(App.DEBUG).makeRequest(
-        				RequestMethod.POST,
-        				endpoint, 
-        				params, 
-        				null, //Body MIME type
-        				null, //Body
-        				null);//Headers
-        	} catch (MalformedURLException e) {
-        		App.logError("Unable to communicate with AuthServer. Check your config. Caused by MalformedURLException. Exiting");
-        		App.logDebug(ExceptionUtils.getStackTrace(e));
-        		System.exit(1);
-        	} catch (IOException e) {
-        		App.logError("Unable to communicate with AuthServer. Caused by IOException. Exiting");
-        		App.logDebug(ExceptionUtils.getStackTrace(e));
-        		System.exit(1);
-        	}
-        	
-    		if(responseObject.getResponseCode() != 200) {
-    			switch(responseObject.getResponseCode()) {
-    			case 403: 
-    				App.logError("Invalid API token. Check your config. Exiting");
-    				System.exit(1);
-    				break;
-    			case 404:
-    				App.logDebug("No user with ID " + id + " known to the AuthServer. Removing from sync list!");
-    				//TODO remove ID from sync list.
-    				break;
-    			default:
-    				App.logError("An unexpected status was returned from the AuthServer. Check your config and the health of the AuthServer");
-    				App.logDebug(responseObject.getConnectionMessage());
-    				break;
-    			}
+    	String authServerHost = System.getenv("AUTH_SERVER_HOST");
+    	if(authServerHost != null) {
+    		App.environment.setAuthServerHost(authServerHost);
+    	} else {
+    		App.logError("Environmental variable 'AUTH_SERVER_HOST' not defined!");
+    		System.exit(1);
+    	}
+    	
+    	String frontendHost = System.getenv("FRONTEND_HOST");
+    	if(frontendHost != null) {
+    		App.environment.setFrontendHost(frontendHost);
+    	} else {
+    		App.logError("Environmental variable 'FRONTEND_HOST' not defined!");
+    		System.exit(1);
+    	}
+    	
+    	String espoHost = System.getenv("ESPO_HOST");
+    	if(espoHost != null) {
+    		App.environment.setEspoHost(espoHost);
+    	} else {
+    		App.logError("Environmental variable 'ESPO_HOST' not defined!");
+    		System.exit(1);
+    	}
+    	
+    	String espoApiKey = System.getenv("ESPO_API_KEY");
+    	if(espoApiKey != null) {
+    		App.environment.setEspoApiKey(espoApiKey);
+    	} else {
+    		App.logError("Environmental variable 'ESPO_API_KEY' not defined!");
+    		System.exit(1);
+    	}
+    	
+    	String espoSecretKey = System.getenv("ESPO_SECRET_KEY");
+    	if(espoSecretKey != null) {
+    		App.environment.setEspoSecretKey(espoSecretKey);
+    	} else {
+    		App.logError("Environmental variable 'ESPO_SECRET_KEY' not defined!");
+    		System.exit(1);
+    	}
+    	
+    	String mysqlHost = System.getenv("MYSQL_HOST");
+    	if(mysqlHost != null) {
+    		App.environment.setMysqlHost(mysqlHost);
+    	} else {
+    		App.logError("Environmental variable 'MYSQL_HOST' not defined!");
+    		System.exit(1);
+    	}
+    	
+    	String mysqlDb = System.getenv("MYSQL_DB");
+    	if(mysqlDb != null) {
+    		App.environment.setMysqlDb(mysqlDb);
+    	} else {
+    		App.logError("Environmental variable 'MYSQL_DB' not defined!");
+    		System.exit(1);
+    	}
+    	
+    	String mysqlUsername = System.getenv("MYSQL_USERNAME");
+    	if(mysqlUsername != null) {
+    		App.environment.setMysqlUsername(mysqlUsername);
+    	} else {
+    		App.logError("Environmental variable 'MYSQL_USERNAME' not defined!");
+    		System.exit(1);
+    	}
+    	
+    	String mysqlPassword = System.getenv("MYSQL_PASSWORD");
+    	if(mysqlPassword != null) {
+    		App.environment.setMysqlPassword(mysqlPassword);
+    	} else {
+    		App.logError("Environmental variable 'MYSQL_PASSWORD' not defined!");
+    		System.exit(1);
+    	}
+    	
+    	App.logInfo("Fetching users from database.");
+    	List<String> activeUsers = new ArrayList<>();
+    	try {
+    		final String query = "SELECT id FROM users";
+    		PreparedStatement pr = sqlManager.createPreparedStatement(query);
+    		ResultSet rs = sqlManager.executeFetchStatement(pr);
+    		
+    		while(rs.next()) {
+    			activeUsers.add(rs.getString("id"));
     		}
-    		
-    		JSONObject jsonResponse = new JSONObject(responseObject.getMessage());
-    		User user = new User(jsonResponse.getString("id"), jsonResponse.getString("token"), jsonResponse.getString("email"));
-    		
-    		App.activeUsers.add(user);
+    	} catch(SQLException e) {
+    		e.printStackTrace();
     	}
     	
     	//Start fetch mail thread for each user
-    	App.activeUsers.forEach(user -> {
-    		String id = user.getId();
-    		String token = user.getToken();
-    		
-        	Thread fetchMailThread = new Thread(new FetchMailRunnable(token, id), "FetchMailThread-" + id);
-        	fetchMailThread.start();
+    	App.logInfo(String.format("Starting FetchMailThread for %d users.", activeUsers.size()));
+    	activeUsers.forEach(user -> {    		
+    		Thread fetchMailThreadV2 = new Thread(new FetchMailThreadV2(user), "FetchMailThreadV2-" + user);
+    		fetchMailThreadV2.start();
     	});
     	
-    	//Create a scheduled executor
-    	final ScheduledThreadPoolExecutor scheduledExecutor = new ScheduledThreadPoolExecutor(3);
+    	final ScheduledThreadPoolExecutor scheduler = new ScheduledThreadPoolExecutor(3);
     	
-    	//Schedule the Espo sync thread to start in 5 minutes
-    	Thread espoSyncThread = new Thread(new EspoSyncRunnable(), "EspoSyncThread");
-    	scheduledExecutor.schedule(() -> espoSyncThread.start(), 5, TimeUnit.MINUTES);
-    	//espoSyncThread.start();
+    	//Start an Account sync thread in 3 minutes
+    	//Why 3? No reason really, just to offset each Thread a bit to spread load
+    	Thread accountThread = new Thread(new EspoAccountSyncRunnableV2());
+    	scheduler.schedule(() -> accountThread.start(), 3, TimeUnit.MINUTES);
+    	
+    	//Start a Contact sync thread in 6 minutes
+    	//Why 6? No reason really, just to offset each Thread a bit to spread load
+    	Thread contactThread = new Thread(new EspoContactSyncRunnableV2());
+    	scheduler.schedule(() -> contactThread.start(), 6, TimeUnit.MINUTES);
     	
 		//Start the Spring boot server
-		SpringApplication.run(App.class, args);
+		App.logInfo("Starting Spring Boot server.");
+    	SpringApplication.run(App.class, args);
     }
     
     public static SqlManager getSqlManager() {
     	return App.sqlManager;
+    }
+    
+    public static Environment getEnvironment() {
+    	return App.environment;
     }
     
 	public static void logDebug(Object log) {

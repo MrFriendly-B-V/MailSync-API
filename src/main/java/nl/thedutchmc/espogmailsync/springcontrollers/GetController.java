@@ -45,13 +45,13 @@ public class GetController {
 		// ----------------------------
 		HashMap<String, String> params = new HashMap<>();
 		params.put("sessionId", sessionId);
-		params.put("apiToken", Config.apiToken);
+		params.put("apiToken", App.getEnvironment().getAuthApiToken());
 		
 		//Send a request to the auth server to verify the user
 		ResponseObject responseObject = null;
 		try {
 			 responseObject = new Http(App.DEBUG).makeRequest(Http.RequestMethod.POST, 
-					 Config.authServerHost + "/oauth/token", //Host
+					 App.getEnvironment().getAuthServerHost() + "/oauth/token", //Host
 					 params, //URL parameters
 					 null, null, //Body
 					 new HashMap<String, String>()); //Headers

@@ -9,7 +9,7 @@ import java.sql.SQLException;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 
 import nl.thedutchmc.espogmailsync.App;
-import nl.thedutchmc.espogmailsync.Config;
+import nl.thedutchmc.espogmailsync.Environment;
 
 public class SqlManager {
 
@@ -33,7 +33,8 @@ public class SqlManager {
 		App.logInfo("Connecting to the database...");
 
 		try {
-			connection = DriverManager.getConnection("jdbc:mysql://" + Config.mysqlHost + "/" + Config.mysqlDb + "?user=" + Config.mysqlUser + "&password=" +  Config.mysqlPassword);
+			Environment e = App.getEnvironment();
+			connection = DriverManager.getConnection("jdbc:mysql://" + e.getMysqlHost() + "/" + e.getMysqlDb() + "?user=" + e.getMysqlUsername() + "&password=" +  e.getMysqlPassword());
 		} catch (SQLException e) {
 			App.logError("Unable to connect to the specified database! Exiting");
 			App.logDebug(ExceptionUtils.getStackTrace(e));
@@ -43,23 +44,17 @@ public class SqlManager {
 		App.logInfo("Connection with database established.");
 	}
 	
-	/**
-	 * Execute a statement against a database
-	 * @param type Type of statement
-	 * @param preparedStatement The statement to execute
-	 * @return Returns a ResultObject 
-	 * @throws SQLException
-	 */
-	public ResultObject executeStatement(StatementType type, PreparedStatement preparedStatement) throws SQLException {
-		if(type == StatementType.query) {
-			ResultSet resultSet = preparedStatement.executeQuery();
-			return new ResultObject(type, resultSet);
-		} else if(type == StatementType.update) {
-			int resultInt = preparedStatement.executeUpdate();
-			return new ResultObject(type, resultInt);
-		}
-		
-		return null;
+	public ResultSet executeFetchStatement(PreparedStatement pr) throws SQLException {
+		return pr.executeQuery();
 	}
+	
+	public void executePutStatement(PreparedStatement pr) throws SQLException {
+		pr.execute();
+	}
+	
+	public PreparedStatement createPreparedStatement(String sql) throws SQLException {
+		return this.connection.prepareStatement(sql);
+	}
+	
 	
 }

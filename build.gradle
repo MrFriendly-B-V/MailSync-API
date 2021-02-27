@@ -22,6 +22,7 @@ dependencies {
     
     //JSON
     compile group: 'org.json', name: 'json', version: '20200518'
+  	compile 'com.google.code.gson:gson:2.8.6'
 
     //HttpLib
     implementation 'com.github.TheDutchMC:HttpLib:1.1'
