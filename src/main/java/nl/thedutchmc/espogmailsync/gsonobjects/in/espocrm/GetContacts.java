@@ -1,4 +1,4 @@
-package nl.thedutchmc.espogmailsync.gsonobjects.espocrm;
+package nl.thedutchmc.espogmailsync.gsonobjects.in.espocrm;
 
 import com.google.gson.annotations.SerializedName;
 

@@ -31,14 +31,13 @@ public class App {
 	
     public static void main(String[] args) {
     	
-    	App.sqlManager = new SqlManager();
     	App.environment = new Environment();
     	
     	App.logInfo("Running preflight checks...");
     	
     	//Check debug mode
     	String debugModeStr = System.getenv("DEBUG");
-    	if(debugModeStr.equalsIgnoreCase("true")) {
+    	if(debugModeStr != null && debugModeStr.equalsIgnoreCase("true")) {
     		App.logInfo("Environmental variable 'DEBUG' set to true. Running with DEBUG level logging!");
     		App.DEBUG = true;
     	}
@@ -124,6 +123,8 @@ public class App {
     		System.exit(1);
     	}
     	
+    	App.sqlManager = new SqlManager();
+    	
     	App.logInfo("Fetching users from database.");
     	List<String> activeUsers = new ArrayList<>();
     	try {
@@ -148,14 +149,14 @@ public class App {
     	final ScheduledThreadPoolExecutor scheduler = new ScheduledThreadPoolExecutor(3);
     	
     	//Start an Account sync thread in 3 minutes
-    	//Why 3? No reason really, just to offset each Thread a bit to spread load
+    	//Why 20? No reason really, just to offset each Thread a bit to spread load
     	Thread accountThread = new Thread(new EspoAccountSyncRunnableV2());
-    	scheduler.schedule(() -> accountThread.start(), 3, TimeUnit.MINUTES);
+    	scheduler.schedule(() -> accountThread.start(), 20, TimeUnit.MINUTES);
     	
     	//Start a Contact sync thread in 6 minutes
-    	//Why 6? No reason really, just to offset each Thread a bit to spread load
+    	//Why 40? No reason really, just to offset each Thread a bit to spread load
     	Thread contactThread = new Thread(new EspoContactSyncRunnableV2());
-    	scheduler.schedule(() -> contactThread.start(), 6, TimeUnit.MINUTES);
+    	scheduler.schedule(() -> contactThread.start(), 40, TimeUnit.MINUTES);
     	
 		//Start the Spring boot server
 		App.logInfo("Starting Spring Boot server.");

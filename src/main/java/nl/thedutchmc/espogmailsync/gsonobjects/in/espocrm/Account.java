@@ -1,7 +1,8 @@
-package nl.thedutchmc.espogmailsync.gsonobjects.espocrm;
+package nl.thedutchmc.espogmailsync.gsonobjects.in.espocrm;
 
-public class Contact {
-	private String id, emailAddress;
+public class Account {
+	
+	private String id,emailAddress;
 
 	/**
 	 * @return the id
@@ -16,5 +17,6 @@ public class Contact {
 	public String getEmailAddress() {
 		return emailAddress;
 	}
+	
 	
 }

@@ -1,4 +1,4 @@
-package nl.thedutchmc.espogmailsync.gsonobjects.gmail;
+package nl.thedutchmc.espogmailsync.gsonobjects.in.gmail;
 
 public class Header {
 	private String name, value;

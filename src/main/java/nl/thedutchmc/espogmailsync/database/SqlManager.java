@@ -6,10 +6,9 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 
-import org.apache.commons.lang3.exception.ExceptionUtils;
-
 import nl.thedutchmc.espogmailsync.App;
 import nl.thedutchmc.espogmailsync.Environment;
+import nl.thedutchmc.espogmailsync.utils.Utils;
 
 public class SqlManager {
 
@@ -26,7 +25,7 @@ public class SqlManager {
 			Class.forName("com.mysql.cj.jdbc.Driver");
 		} catch(ClassNotFoundException e) {
 			App.logError("Unable to load MySQL Driver. Make sure you have it installed! Exiting");
-			App.logDebug(ExceptionUtils.getStackTrace(e));
+			App.logDebug(Utils.getStackTrace(e));
 			System.exit(1);
 		}
 		
@@ -37,7 +36,7 @@ public class SqlManager {
 			connection = DriverManager.getConnection("jdbc:mysql://" + e.getMysqlHost() + "/" + e.getMysqlDb() + "?user=" + e.getMysqlUsername() + "&password=" +  e.getMysqlPassword());
 		} catch (SQLException e) {
 			App.logError("Unable to connect to the specified database! Exiting");
-			App.logDebug(ExceptionUtils.getStackTrace(e));
+			App.logDebug(Utils.getStackTrace(e));
 			System.exit(1);
 		}
 		

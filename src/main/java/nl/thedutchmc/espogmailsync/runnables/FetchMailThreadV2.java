@@ -15,11 +15,11 @@ import com.google.gson.Gson;
 import nl.thedutchmc.espogmailsync.App;
 import nl.thedutchmc.espogmailsync.database.SqlManager;
 import nl.thedutchmc.espogmailsync.database.types.DatabaseMessage;
-import nl.thedutchmc.espogmailsync.gsonobjects.gmail.Header;
-import nl.thedutchmc.espogmailsync.gsonobjects.gmail.Message;
-import nl.thedutchmc.espogmailsync.gsonobjects.gmail.MessagePart;
-import nl.thedutchmc.espogmailsync.gsonobjects.gmail.MessagesList;
-import nl.thedutchmc.espogmailsync.gsonobjects.gmail.SmallMessage;
+import nl.thedutchmc.espogmailsync.gsonobjects.in.gmail.Header;
+import nl.thedutchmc.espogmailsync.gsonobjects.in.gmail.Message;
+import nl.thedutchmc.espogmailsync.gsonobjects.in.gmail.MessagePart;
+import nl.thedutchmc.espogmailsync.gsonobjects.in.gmail.MessagesList;
+import nl.thedutchmc.espogmailsync.gsonobjects.in.gmail.SmallMessage;
 import nl.thedutchmc.httplib.Http;
 import nl.thedutchmc.httplib.Http.RequestMethod;
 import nl.thedutchmc.httplib.Http.ResponseObject;
@@ -60,7 +60,7 @@ public class FetchMailThreadV2 implements Runnable {
 			}
 			
 			//Start a thread to periodically fetch the authToken from the authentication server
-			Thread tokenThread = new Thread(new UpdateTokenRunnable(this.userId));
+			Thread tokenThread = new Thread(new UpdateTokenRunnable(this.userId), "UpdateTokenThread-" + this.userId);
 			tokenThread.start();
 			
 			//Wait 10 seconds for the tokenThread to get the initial token
@@ -90,10 +90,10 @@ public class FetchMailThreadV2 implements Runnable {
 					nextPageToken = null;
 				}
 				
-				App.logInfo("Analysing page " + nextPageToken);
+				App.logDebug(String.format("Analysing Inbox page %s for user %s", nextPageToken, this.userId));
 				
 				//Get the page from the Gmail API
-				final String messagesListStr = usersMessagesList(this.userId, nextPageToken, authToken);
+				final String messagesListStr = usersMessagesList(this.userId, nextPageToken);
 				if(messagesListStr == "") {
 					continue;
 				}
@@ -115,18 +115,13 @@ public class FetchMailThreadV2 implements Runnable {
 			//Check for each if we've already analyzed this message
 			List<String> messageIdsToAnalyze = new ArrayList<>();
 			for(MessagesList messagesList : allMessagesList) {
-				App.logDebug("Analysing MessagesList " + messagesList);
-				App.logDebug("SmallMessage count: " + messagesList.getMessages().length);
+				App.logDebug(String.format("Analysing MessagesList %s for user %s", messagesList, this.userId));
 				
 				for(SmallMessage smallMessage : messagesList.getMessages()) {
-					App.logDebug("Checking ID for SmallMessage: " + smallMessage.getId());
-					
 					//If the list of message IDs we've already analyzed doesn't contain
 					//the ID in this SmallMessage, that means we've not yet analyzed it,
 					//add it to the list of messages that need analyzing
-					if(!messageIdsAnalyzed.contains(smallMessage.getId())) {
-						App.logDebug("Message passed!");
-						
+					if(!messageIdsAnalyzed.contains(smallMessage.getId())) {						
 						messageIdsToAnalyze.add(smallMessage.getId());
 					}				
 				}
@@ -139,7 +134,7 @@ public class FetchMailThreadV2 implements Runnable {
 			for(String messageId : messageIdsToAnalyze) {
 				App.logDebug(String.format("Analysing message %s for user %s.", messageId, this.userId));
 				
-				String messageStr = usersMessagesGet(this.userId, messageId, authToken);
+				String messageStr = usersMessagesGet(this.userId, messageId);
 				if(messageStr == "") {
 					continue;
 				}
@@ -262,21 +257,34 @@ public class FetchMailThreadV2 implements Runnable {
 	 * @param authToken Authentication token to use
 	 * @return The result, or an empty String if an error occured
 	 */
-	private String usersMessagesGet(String userId, String messageId, String authToken) {
+	private String usersMessagesGet(String userId, String messageId) {
 		String endpoint = "https://gmail.googleapis.com/gmail/v1/users/{userId}/messages/{id}"
 			.replace("{userId}", userId)
 			.replace("{id}", messageId);
 	
 		ResponseObject apiResponse;
 		try {
-			apiResponse = new Http(App.DEBUG).makeRequest(RequestMethod.GET, endpoint, null, null, null, getAuthorizationHeaderMap(authToken));
+			apiResponse = new Http(App.DEBUG).makeRequest(RequestMethod.GET, endpoint, null, null, null, getAuthorizationHeaderMap(this.authToken));
 		} catch(IOException e) {
 			e.printStackTrace();
 			return "";
 		}
 		
-		if(apiResponse.getResponseCode() != 200) {
-			return "";
+		
+		int responseCode = apiResponse.getResponseCode();
+		if(responseCode != 200) {
+			if(responseCode == 401) {
+				App.logError("Got 401. Assuming invalid credentials. Waiting 30 seconds then retrying!");
+				try {
+					Thread.sleep(30000);
+				} catch (InterruptedException e) {
+					e.printStackTrace();
+				}
+				
+				return usersMessagesGet(userId, messageId);
+			} else {
+				return "";
+			}
 		}
 		
 		return apiResponse.getMessage();
@@ -301,7 +309,7 @@ public class FetchMailThreadV2 implements Runnable {
 	 * @param authToken Authentication token to use
 	 * @return The result, or an empty String if an error occured
 	 */
-	private String usersMessagesList(String id, String pageToken, String authToken) {
+	private String usersMessagesList(String id, String pageToken) {
 		String endpoint = "https://gmail.googleapis.com/gmail/v1/users/{userId}/messages"
 				.replace("{userId}", id);
 		
@@ -315,14 +323,26 @@ public class FetchMailThreadV2 implements Runnable {
 		
 		ResponseObject apiResponse;
 		try {
-			apiResponse = new Http(App.DEBUG).makeRequest(RequestMethod.GET, endpoint, urlParameters, null, null, getAuthorizationHeaderMap(authToken));
+			apiResponse = new Http(App.DEBUG).makeRequest(RequestMethod.GET, endpoint, urlParameters, null, null, getAuthorizationHeaderMap(this.authToken));
 		} catch (IOException e) {
 			e.printStackTrace();
 			return "";
 		}
 		
-		if(apiResponse.getResponseCode() != 200) {
-			return "";
+		int responseCode = apiResponse.getResponseCode();
+		if(responseCode != 200) {
+			if(responseCode == 401) {
+				App.logError("Got 401. Assuming invalid credentials. Waiting 30 seconds then retrying!");
+				try {
+					Thread.sleep(30000);
+				} catch (InterruptedException e) {
+					e.printStackTrace();
+				}
+				
+				return usersMessagesList(id, pageToken);
+			} else {
+				return "";
+			}
 		}
 		
 		return apiResponse.getMessage();
@@ -338,7 +358,7 @@ public class FetchMailThreadV2 implements Runnable {
 		
 		@Override
 		public void run() {
-			App.logInfo("Starting token Thread for user " + this.userId);
+			App.logInfo("Starting UpdateToken Thread for user " + this.userId);
 			
 			while(!isDone) {
 				App.logDebug("Updating authToken for user " + this.userId);
@@ -363,11 +383,11 @@ public class FetchMailThreadV2 implements Runnable {
 					JSONObject authResponse = new JSONObject(responseObject.getMessage());
 					authToken = authResponse.getString("token");
 					
-					App.logInfo("Auth token updated for user " + this.userId);
+					App.logDebug("Auth token updated for user " + this.userId);
 				}
 				
 				try {
-					Thread.sleep(300000); //5 minutes
+					Thread.sleep(15000); //15 seconds
 				} catch(InterruptedException e) {
 					e.printStackTrace();
 				}
@@ -375,21 +395,3 @@ public class FetchMailThreadV2 implements Runnable {
 		}
 	}
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

@@ -7,3 +7,6 @@ build/
 bin/
 .classpath
 .project
+
+#Test environment
+docker-compose.yml

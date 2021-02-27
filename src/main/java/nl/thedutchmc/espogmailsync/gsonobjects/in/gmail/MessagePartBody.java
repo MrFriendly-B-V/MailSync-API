@@ -1,4 +1,4 @@
-package nl.thedutchmc.espogmailsync.gsonobjects.gmail;
+package nl.thedutchmc.espogmailsync.gsonobjects.in.gmail;
 
 public class MessagePartBody {
 	private String attachmentId, data;

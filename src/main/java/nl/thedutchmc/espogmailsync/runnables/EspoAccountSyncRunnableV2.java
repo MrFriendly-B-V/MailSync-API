@@ -10,12 +10,12 @@ import org.json.JSONObject;
 import com.google.gson.Gson;
 
 import nl.thedutchmc.espogmailsync.App;
-import nl.thedutchmc.espogmailsync.EspoUtils;
-import nl.thedutchmc.espogmailsync.EspoUtils.HttpMethod;
-import nl.thedutchmc.espogmailsync.gsonobjects.espocrm.Account;
-import nl.thedutchmc.espogmailsync.gsonobjects.espocrm.Contact;
-import nl.thedutchmc.espogmailsync.gsonobjects.espocrm.GetAccounts;
-import nl.thedutchmc.espogmailsync.gsonobjects.espocrm.GetContacts;
+import nl.thedutchmc.espogmailsync.gsonobjects.in.espocrm.Account;
+import nl.thedutchmc.espogmailsync.gsonobjects.in.espocrm.Contact;
+import nl.thedutchmc.espogmailsync.gsonobjects.in.espocrm.GetAccounts;
+import nl.thedutchmc.espogmailsync.gsonobjects.in.espocrm.GetContacts;
+import nl.thedutchmc.espogmailsync.utils.EspoUtils;
+import nl.thedutchmc.espogmailsync.utils.EspoUtils.HttpMethod;
 import nl.thedutchmc.httplib.Http;
 import nl.thedutchmc.httplib.Http.MediaFormat;
 import nl.thedutchmc.httplib.Http.RequestMethod;

@@ -1,4 +1,4 @@
-package nl.thedutchmc.espogmailsync;
+package nl.thedutchmc.espogmailsync.utils;
 
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
@@ -14,8 +14,7 @@ import java.util.Map;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 
-import org.apache.commons.lang3.ArrayUtils;
-import org.apache.commons.lang3.exception.ExceptionUtils;
+import nl.thedutchmc.espogmailsync.App;
 
 public class EspoUtils {
 	
@@ -42,7 +41,7 @@ public class EspoUtils {
 			// We don't need to handle this exception, since the `HmacSHA256` algorithm is always there
 		} catch (InvalidKeyException e) {
 			App.logError("Invalid espoSecretKey. Please double check your config!");
-			App.logDebug(ExceptionUtils.getStackTrace(e));
+			App.logDebug(Utils.getStackTrace(e));
 		}
 		
 		//Get the hash
@@ -56,13 +55,13 @@ public class EspoUtils {
 		//String#getBytes() returns a byte[], so we first have to turn it into
 		//a Byte[], then put it in a List<Byte> before we can add it.
 		List<Byte> hmacBytes = new ArrayList<>();
-		hmacBytes.addAll(Arrays.asList(ArrayUtils.toObject((App.getEnvironment().getEspoApiKey() + ":").getBytes())));
-		hmacBytes.addAll(Arrays.asList(ArrayUtils.toObject(hash)));
+		hmacBytes.addAll(Arrays.asList(toObject((App.getEnvironment().getEspoApiKey() + ":").getBytes())));
+		hmacBytes.addAll(Arrays.asList(toObject(hash)));
 		
 		//Get the final hmacAuthorization value
 		//First turn the hmacBytes<Byte> into a byte[],
 		//Then encode it as base64
-		String hmacAuthorization = Base64.getEncoder().encodeToString(ArrayUtils.toPrimitive(hmacBytes.toArray(new Byte[0])));
+		String hmacAuthorization = Base64.getEncoder().encodeToString(toPrimitive(hmacBytes.toArray(new Byte[0])));
 		
 		//Finally return that base64 String
 		return hmacAuthorization;
@@ -219,4 +218,51 @@ public class EspoUtils {
 	        return URLEncoder.encode(String.valueOf(param));
 	    }
 	}
+		
+    /**
+     * Taken from https://github.com/apache/commons-lang/blob/master/src/main/java/org/apache/commons/lang3/ArrayUtils.java
+     * 
+     * <p>Converts an array of primitive bytes to objects.
+     *
+     * <p>This method returns {@code null} for a {@code null} input array.
+     *
+     * @param array  a {@code byte} array
+     * @return a {@code Byte} array, {@code null} if null array input
+     */
+    private static Byte[] toObject(final byte[] array) {
+        if (array == null) {
+            return null;
+        } else if (array.length == 0) {
+            return new Byte[0];
+        }
+        final Byte[] result = new Byte[array.length];
+        for (int i = 0; i < array.length; i++) {
+            result[i] = Byte.valueOf(array[i]);
+        }
+        return result;
+    }
+    
+    /**
+     * Taken from https://github.com/apache/commons-lang/blob/master/src/main/java/org/apache/commons/lang3/ArrayUtils.java
+     * 
+     * <p>Converts an array of object Bytes to primitives.
+     *
+     * <p>This method returns {@code null} for a {@code null} input array.
+     *
+     * @param array  a {@code Byte} array, may be {@code null}
+     * @return a {@code byte} array, {@code null} if null array input
+     * @throws NullPointerException if array content is {@code null}
+     */
+    private static byte[] toPrimitive(final Byte[] array) {
+        if (array == null) {
+            return null;
+        } else if (array.length == 0) {
+            return new byte[0];
+        }
+        final byte[] result = new byte[array.length];
+        for (int i = 0; i < array.length; i++) {
+            result[i] = array[i].byteValue();
+        }
+        return result;
+    }
 }

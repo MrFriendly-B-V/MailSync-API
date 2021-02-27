@@ -1,12 +1,13 @@
 package nl.thedutchmc.espogmailsync.springcontrollers;
 
 import java.io.IOException;
-import java.net.MalformedURLException;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 
-import org.apache.commons.lang3.exception.ExceptionUtils;
-import org.json.JSONArray;
-import org.json.JSONObject;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -14,11 +15,14 @@ import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.google.gson.Gson;
+
 import nl.thedutchmc.espogmailsync.App;
-import nl.thedutchmc.espogmailsync.Config;
-import nl.thedutchmc.espogmailsync.User;
-import nl.thedutchmc.espogmailsync.database.SyncMailUsers;
-import nl.thedutchmc.espogmailsync.runnables.FetchMailRunnable;
+import nl.thedutchmc.espogmailsync.database.SqlManager;
+import nl.thedutchmc.espogmailsync.gsonobjects.in.AuthResponse;
+import nl.thedutchmc.espogmailsync.gsonobjects.in.TokenResponse;
+import nl.thedutchmc.espogmailsync.gsonobjects.out.BasicResponse;
+import nl.thedutchmc.espogmailsync.gsonobjects.out.GetActive;
 import nl.thedutchmc.httplib.Http;
 import nl.thedutchmc.httplib.Http.ResponseObject;
 
@@ -26,107 +30,107 @@ import nl.thedutchmc.httplib.Http.ResponseObject;
 @RequestMapping("/espogmailsync")
 public class PostController {
 	
+	//TODO move to a GET request
 	@CrossOrigin(origins = {"https://intern.mrfriendly.nl", "http://localhost"})
 	@RequestMapping(value = "active", method = RequestMethod.POST, produces = MediaType.APPLICATION_JSON_VALUE)
 	public String getActive(@RequestParam String sessionId) {
+		final Gson gson = new Gson();
 		
-		//Check if the user is authenticated
-		String strAuthResponse = checkAuth(sessionId);
-		JSONObject jsonAuthResponse = new JSONObject(strAuthResponse);
-		if(jsonAuthResponse.getInt("status") != 200) return strAuthResponse;
+		AuthResponse authResponse = Authentication.isAuthenticated(sessionId);
+		if(authResponse == null) {
+			return gson.toJson(new BasicResponse(401));
+		}
 		
-		//Iterate over all the active users, and put their email in a json array
-		JSONArray jsonActiveUsers = new JSONArray();		
-		App.activeUsers.forEach(user -> {
-			jsonActiveUsers.put(user.getEmail());
-		});
+		//Fetch all user IDs from the database
+		List<String> userIds = new ArrayList<>();
+		try {
+			final SqlManager sqlManager = App.getSqlManager();
+			final String query = "SELECT id FROM users";
+			PreparedStatement pr = sqlManager.createPreparedStatement(query);
+			
+			ResultSet rs = sqlManager.executeFetchStatement(pr);
+			
+			while(rs.next()) {
+				userIds.add(rs.getString("id"));
+			}
+		} catch(SQLException e) {
+			e.printStackTrace();
+			return gson.toJson(new BasicResponse(500));
+		}
 		
-		//Return the values
-		return new JSONObject()
-				.put("active_users", jsonActiveUsers)
-				.toString();
+		final String endpoint = App.getEnvironment().getAuthServerHost() + "/oauth/token";
+		
+		//For every User ID make a request to the authentication server to get the email address
+		List<String> emailAddresses = new ArrayList<>();
+		for(String userId : userIds) {
+			HashMap<String, String> urlParameters = new HashMap<>();
+			urlParameters.put("userId", userId);
+			urlParameters.put("apiToken", App.getEnvironment().getAuthApiToken());
+			
+			ResponseObject apiResponse;
+			try {
+				apiResponse = new Http(App.DEBUG).makeRequest(Http.RequestMethod.POST, endpoint, urlParameters, null, null, null);
+			} catch(IOException e) {
+				e.printStackTrace();
+				return gson.toJson(new BasicResponse(500));
+			}
+			
+			if(apiResponse.getResponseCode() != 200) {
+				App.logError(apiResponse.getConnectionMessage());
+				return gson.toJson(new BasicResponse(500));
+			}
+			
+			TokenResponse tokenResponse = gson.fromJson(apiResponse.getMessage(), TokenResponse.class);
+			if(tokenResponse.getStatus() != 200) {
+				App.logError(tokenResponse.getMessage());
+				return gson.toJson(new BasicResponse(500));
+			}
+				
+			emailAddresses.add(tokenResponse.getEmail());
+		}
+		
+		return gson.toJson(new GetActive(200, emailAddresses.toArray(new String[0])));
 	}
 	
 	@CrossOrigin(origins = {"https://intern.mrfriendly.nl", "http://localhost"})
 	@RequestMapping(value = "new", method = RequestMethod.POST, produces = MediaType.APPLICATION_JSON_VALUE)
 	public String postNew(@RequestParam String sessionId) {
-		String strAuthResponse = checkAuth(sessionId);
-		JSONObject jsonAuthResponse = new JSONObject(strAuthResponse);
-		if(jsonAuthResponse.getInt("status") != 200) return strAuthResponse;
+		final Gson gson = new Gson();
 		
-		User user = new User(
-				jsonAuthResponse.getString("id"),
-				jsonAuthResponse.getString("token"),
-				jsonAuthResponse.getString("email"));
+		AuthResponse authResponse = Authentication.isAuthenticated(sessionId);
+		if(authResponse == null) {
+			return gson.toJson(new BasicResponse(401));
+		}
 		
-		App.activeUsers.add(user);
+		final SqlManager sqlManager = App.getSqlManager();
 		
-		new SyncMailUsers().addMailUser(user.getId());
-
-		Thread fetchMailThread = new Thread(new FetchMailRunnable(user.getToken(), user.getId()), "FetchMailThread-" + user.getId());
-		fetchMailThread.start();
-		
-		JSONObject response = new JSONObject();
-		response.put("status", 200);
-		response.put("email", user.getEmail());
-		
-		return response.toString();
-	}
-	
-	/**
-	 * Method used to check if a user is authenticated. It will also get their token, email and id
-	 * @param sessionId The sessionId to check
-	 * @return A String of JSON containing the returned information, or error messages
-	 */
-	private String checkAuth(String sessionId) {
-		HashMap<String, String> params = new HashMap<>();
-		params.put("sessionId", sessionId);
-		params.put("apiToken", Config.apiToken);
-		
-		ResponseObject responseObject = null;
+		//Check if the user ID already exists in the database
 		try {
-			 responseObject = new Http(App.DEBUG).makeRequest(Http.RequestMethod.POST, 
-					 Config.authServerHost + "/oauth/token", //Host
-					 params, //URL parameters
-					 null, null, //Body
-					 new HashMap<String, String>()); //Headers
-		} catch (MalformedURLException e) {
-			App.logError("Unable to verify sessionId with authserver. Is the URL correct? Caused by MalformedURLException");
-			App.logDebug(ExceptionUtils.getStackTrace(e));
+			final String query = "SELECT id FROM users WHERE id=?";
+			PreparedStatement pr = sqlManager.createPreparedStatement(query);
+			pr.setString(1, authResponse.getId());
 			
-			JSONObject response = new JSONObject();
-			response.put("status", 500);
-			response.put("message", "MalformedURLException");
-			
-			return response.toString();
-			
-		} catch (IOException e) {
-			App.logError("Unable to verify sessionId with authserver. Caused by IOException");
-			App.logDebug(ExceptionUtils.getStackTrace(e));
-			
-			JSONObject response = new JSONObject();
-			response.put("status", 500);
-			response.put("message", "IOException");
-			
-			return response.toString();
-		}
-			
-		JSONObject json = new JSONObject(responseObject.getMessage());
-		if(json.getInt("status") != 200) {
-			App.logDebug(json.get("message"));
-			JSONObject response = new JSONObject();
-			response.put("status", json.getInt("status"));
-			response.put("message", "The AuthServer did not return the requested details. Check debug logs");
-			
-			return response.toString();
+			ResultSet rs = sqlManager.executeFetchStatement(pr);
+			if(rs.getMetaData().getColumnCount() > 0) {
+				return gson.toJson(new BasicResponse(409));
+			}
+		} catch(SQLException e) {
+			e.printStackTrace();
+			return gson.toJson(new BasicResponse(500));
 		}
 		
-		JSONObject response = new JSONObject()
-					.put("status", 200)
-					.put("token", json.get("token"))
-					.put("id", json.get("id"))
-					.put("email", json.get("email"));
+		//Write the new user ID to the database
+		try {
+			final String query = "INSERT INTO users (id) VALUES (?)";
+			PreparedStatement pr = sqlManager.createPreparedStatement(query);
+			pr.setString(1, authResponse.getId());
+			
+			sqlManager.executePutStatement(pr);
+		} catch(SQLException e) {
+			e.printStackTrace();
+			return gson.toJson(new BasicResponse(500));
+		}
 		
-		return response.toString();
+		return gson.toJson(new BasicResponse(200));
 	}
 }
