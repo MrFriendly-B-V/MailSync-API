@@ -33,3 +33,13 @@ steps:
       from_secret: k8s_token
   commands:
     - kubectl set image deployment/espogmailsync-deployment espogmailsync-api=registry.thedutchmc.nl/espogmailsync-api:latest
+
+steps:
+- name: slack
+  image: plugins/slack
+  settings:
+    webhook:
+      from_secret: discord_webhook
+    username: Drone CI/CD - EspoGmailSync
+  when:
+    status: [ success, failure ]
