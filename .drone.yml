@@ -1,11 +1,7 @@
-kind: policy
-name: default
-
-service_account: drone-runner
----
 kind: pipeline
 type: kubernetes
 name: espogmailsync-deploy
+service_account: drone-runner
 
 triggers:
  branch:
