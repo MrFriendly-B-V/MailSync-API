@@ -34,7 +34,6 @@ steps:
   commands:
     - kubectl set image deployment/espogmailsync-deployment espogmailsync-api=registry.thedutchmc.nl/espogmailsync-api:latest
 
-steps:
 - name: slack
   image: plugins/slack
   settings:
