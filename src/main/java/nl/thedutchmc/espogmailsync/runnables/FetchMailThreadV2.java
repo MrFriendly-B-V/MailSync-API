@@ -20,6 +20,7 @@ import nl.thedutchmc.espogmailsync.gsonobjects.in.gmail.Message;
 import nl.thedutchmc.espogmailsync.gsonobjects.in.gmail.MessagePart;
 import nl.thedutchmc.espogmailsync.gsonobjects.in.gmail.MessagesList;
 import nl.thedutchmc.espogmailsync.gsonobjects.in.gmail.SmallMessage;
+import nl.thedutchmc.espogmailsync.utils.Utils;
 import nl.thedutchmc.httplib.Http;
 import nl.thedutchmc.httplib.Http.RequestMethod;
 import nl.thedutchmc.httplib.Http.ResponseObject;
@@ -56,7 +57,16 @@ public class FetchMailThreadV2 implements Runnable {
 					messageIdsAnalyzed.add(id);
 				}
 			} catch(SQLException e) {
-				e.printStackTrace();
+				App.logError("An error occured while getting Message IDs from the database. Retrying in 60 seconds");
+				App.logDebug(Utils.getStackTrace(e));
+				
+				try {
+					Thread.sleep(60000);
+				} catch(InterruptedException e1) {
+					App.logDebug(Utils.getStackTrace(e1));
+				}
+				
+				continue;
 			}
 			
 			//Start a thread to periodically fetch the authToken from the authentication server
@@ -67,7 +77,7 @@ public class FetchMailThreadV2 implements Runnable {
 			try {
 				Thread.sleep(10000);
 			} catch(InterruptedException e) {
-				e.printStackTrace();
+				App.logDebug(Utils.getStackTrace(e));
 			}
 			
 			//Create a GSON instance. This is used everywhere throughout this runnable
@@ -153,6 +163,7 @@ public class FetchMailThreadV2 implements Runnable {
 				}
 				
 				DatabaseMessage databaseMessage = new DatabaseMessage(messageId, data);
+				databaseMessage.setInternalDate(message.getInternalDate());
 				
 				//Extract the headers we want:
 				// - From
@@ -193,7 +204,7 @@ public class FetchMailThreadV2 implements Runnable {
 
 				//Send this message of to the database
 				try {
-					final String sendMessageToDbQuery = "INSERT INTO messages (id, sender, receiver, cc, bcc, subject, data) VALUES (?, ?, ?, ?, ?, ?, ?)";
+					final String sendMessageToDbQuery = "INSERT INTO messages (id, sender, receiver, cc, bcc, subject, data, internal_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
 					PreparedStatement pr = sqlManager.createPreparedStatement(sendMessageToDbQuery);
 					pr.setString(1, databaseMessage.getId());
 					pr.setString(2, databaseMessage.getSender());
@@ -202,10 +213,12 @@ public class FetchMailThreadV2 implements Runnable {
 					pr.setString(5, databaseMessage.getBcc());
 					pr.setString(6, databaseMessage.getSubject());
 					pr.setString(7, databaseMessage.getData());
+					pr.setString(8, databaseMessage.getInternalDate());
 			
 					sqlManager.executePutStatement(pr);
 				} catch(SQLException e) {
-					e.printStackTrace();
+					App.logError("An error occured while inserting a DatabaseMessage into the database");
+					App.logDebug(Utils.getStackTrace(e));
 					continue;
 				}
 				
@@ -213,7 +226,7 @@ public class FetchMailThreadV2 implements Runnable {
 				try {
 					Thread.sleep(250);
 				} catch(InterruptedException e) {
-					e.printStackTrace();
+					App.logDebug(Utils.getStackTrace(e));
 				}
 			}
 			
@@ -224,7 +237,7 @@ public class FetchMailThreadV2 implements Runnable {
 			try {
 				Thread.sleep(3600000);
 			} catch(InterruptedException e) {
-				e.printStackTrace();
+				App.logDebug(Utils.getStackTrace(e));
 			}
 		}
 	}
@@ -266,23 +279,25 @@ public class FetchMailThreadV2 implements Runnable {
 		try {
 			apiResponse = new Http(App.DEBUG).makeRequest(RequestMethod.GET, endpoint, null, null, null, getAuthorizationHeaderMap(this.authToken));
 		} catch(IOException e) {
-			e.printStackTrace();
+			App.logError(String.format("An error occured while getting Message details for message %s for user %s", messageId, userId));
+			App.logDebug(Utils.getStackTrace(e));
 			return "";
 		}
-		
 		
 		int responseCode = apiResponse.getResponseCode();
 		if(responseCode != 200) {
 			if(responseCode == 401) {
-				App.logError("Got 401. Assuming invalid credentials. Waiting 30 seconds then retrying!");
+				App.logError(String.format("Got 401 while getting Message details for message %s for user %s. Assuming invalid credentials. Waiting 30 seconds then retrying!", messageId, userId));
 				try {
 					Thread.sleep(30000);
 				} catch (InterruptedException e) {
-					e.printStackTrace();
+					App.logDebug(Utils.getStackTrace(e));
 				}
 				
 				return usersMessagesGet(userId, messageId);
 			} else {
+				App.logError(String.format("Got non-200 status code while getting Message details for message %s for user %s", messageId, userId));
+				App.logDebug(apiResponse.getConnectionMessage());
 				return "";
 			}
 		}
@@ -325,7 +340,8 @@ public class FetchMailThreadV2 implements Runnable {
 		try {
 			apiResponse = new Http(App.DEBUG).makeRequest(RequestMethod.GET, endpoint, urlParameters, null, null, getAuthorizationHeaderMap(this.authToken));
 		} catch (IOException e) {
-			e.printStackTrace();
+			App.logError("An error occured while getting Messages from the user's Inbox");
+			App.logDebug(Utils.getStackTrace(e));
 			return "";
 		}
 		
@@ -336,11 +352,13 @@ public class FetchMailThreadV2 implements Runnable {
 				try {
 					Thread.sleep(30000);
 				} catch (InterruptedException e) {
-					e.printStackTrace();
+					App.logDebug(Utils.getStackTrace(e));
 				}
 				
 				return usersMessagesList(id, pageToken);
 			} else {
+				App.logError("Got non-200 status code while getting Messages from the user's Inbox");
+				App.logDebug(apiResponse.getConnectionMessage());
 				return "";
 			}
 		}
@@ -369,18 +387,19 @@ public class FetchMailThreadV2 implements Runnable {
 				urlParameters.put("userId", this.userId);
 				urlParameters.put("apiToken", App.getEnvironment().getAuthApiToken());
 				
-				ResponseObject responseObject;
+				ResponseObject apiResponse;
 				try {
-					responseObject = new Http(App.DEBUG).makeRequest(RequestMethod.POST, endpoint, urlParameters, null, null, null);
+					apiResponse = new Http(App.DEBUG).makeRequest(RequestMethod.POST, endpoint, urlParameters, null, null, null);
 				} catch(IOException e) {
-					e.printStackTrace();
+					App.logError("An error occured while updating AuthToken for user " + userId);
 					continue;
 				}
 				
-				if(responseObject.getResponseCode() != 200) {
-					App.logError(responseObject.getConnectionMessage());
+				if(apiResponse.getResponseCode() != 200) {
+					App.logError("Got non-200 status code while updating AuthToken for user " + userId);
+					App.logDebug(apiResponse.getConnectionMessage());
 				} else {
-					JSONObject authResponse = new JSONObject(responseObject.getMessage());
+					JSONObject authResponse = new JSONObject(apiResponse.getMessage());
 					authToken = authResponse.getString("token");
 					
 					App.logDebug("Auth token updated for user " + this.userId);
@@ -389,7 +408,7 @@ public class FetchMailThreadV2 implements Runnable {
 				try {
 					Thread.sleep(15000); //15 seconds
 				} catch(InterruptedException e) {
-					e.printStackTrace();
+					App.logDebug(Utils.getStackTrace(e));
 				}
 			}
 		}

@@ -29,7 +29,7 @@ public class SqlManager {
 			System.exit(1);
 		}
 		
-		App.logInfo("Connecting to the database...");
+		App.logInfo("Connecting to database...");
 
 		try {
 			Environment e = App.getEnvironment();
@@ -54,6 +54,4 @@ public class SqlManager {
 	public PreparedStatement createPreparedStatement(String sql) throws SQLException {
 		return this.connection.prepareStatement(sql);
 	}
-	
-	
 }

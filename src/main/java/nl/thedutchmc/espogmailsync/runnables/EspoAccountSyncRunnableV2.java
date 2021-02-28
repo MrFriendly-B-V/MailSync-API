@@ -15,6 +15,7 @@ import nl.thedutchmc.espogmailsync.gsonobjects.in.espocrm.Contact;
 import nl.thedutchmc.espogmailsync.gsonobjects.in.espocrm.GetAccounts;
 import nl.thedutchmc.espogmailsync.gsonobjects.in.espocrm.GetContacts;
 import nl.thedutchmc.espogmailsync.utils.EspoUtils;
+import nl.thedutchmc.espogmailsync.utils.Utils;
 import nl.thedutchmc.espogmailsync.utils.EspoUtils.HttpMethod;
 import nl.thedutchmc.httplib.Http;
 import nl.thedutchmc.httplib.Http.MediaFormat;
@@ -75,7 +76,7 @@ public class EspoAccountSyncRunnableV2 implements Runnable {
 				try {
 					Thread.sleep(500);
 				} catch(InterruptedException e) {
-					e.printStackTrace();
+					App.logDebug(Utils.getStackTrace(e));
 				}
 			}
 			
@@ -83,7 +84,7 @@ public class EspoAccountSyncRunnableV2 implements Runnable {
 			try {
 				Thread.sleep(3600000);
 			} catch(InterruptedException e) {
-				e.printStackTrace();
+				App.logDebug(Utils.getStackTrace(e));
 			}
 		}
 	}
@@ -110,12 +111,14 @@ public class EspoAccountSyncRunnableV2 implements Runnable {
 		try {
 			apiResponse = new Http(App.DEBUG).makeRequest(RequestMethod.PUT, endpoint, null, MediaFormat.JSON, requestBody.toString(), headers);
 		} catch(IOException e) {
-			e.printStackTrace();
+			App.logError("An issue occured while setting the mailSync URL for Account " + accountId);
+			App.logDebug(Utils.getStackTrace(e));
 			return;
 		}
 		
 		if(apiResponse.getResponseCode() != 200) {
-			App.logError(apiResponse.getConnectionMessage());
+			App.logError("Got non-200 status code while setting mailSync URL for Account " + accountId);
+			App.logDebug(apiResponse.getConnectionMessage());
 		}
 		
 	}
@@ -149,12 +152,14 @@ public class EspoAccountSyncRunnableV2 implements Runnable {
 		try {
 			apiResponse = new Http(App.DEBUG).makeRequest(RequestMethod.GET, endpoint + "?" + urlParametersEncoded, null, null, null, headers);
 		} catch(IOException e) {
-			e.printStackTrace();
+			App.logError("An error occured while getting Contacts linked to Account " + accountId);
+			App.logDebug(Utils.getStackTrace(e));
 			return "";
 		}
 		
 		if(apiResponse.getResponseCode() != 200) {
-			App.logError(apiResponse.getConnectionMessage());
+			App.logError("Got non-200 status code while getting Contacts linked to Account " + accountId);
+			App.logDebug(apiResponse.getConnectionMessage());
 			return "";
 		}
 		
@@ -178,12 +183,14 @@ public class EspoAccountSyncRunnableV2 implements Runnable {
 		try {
 			apiResponse = new Http(App.DEBUG).makeRequest(RequestMethod.GET, endpoint, urlParameters, null, null, headers);
 		} catch(IOException e) {
-			e.printStackTrace();
+			App.logError("An error occured while getting Accounts from EspoCRM");
+			App.logDebug(Utils.getStackTrace(e));
 			return "";
 		}
 		
 		if(apiResponse.getResponseCode() != 200) {
-			App.logError(apiResponse.getConnectionMessage());
+			App.logError("Got non-200 status code while getting Accounts from EspoCRM");
+			App.logDebug(apiResponse.getConnectionMessage());
 			return "";
 		}
 		

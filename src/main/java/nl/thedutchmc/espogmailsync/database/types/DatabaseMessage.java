@@ -1,7 +1,7 @@
 package nl.thedutchmc.espogmailsync.database.types;
 
 public class DatabaseMessage {
-	private String id, sender, receiver, data, cc, bcc, subject;
+	private String id, sender, receiver, data, cc, bcc, subject, internalDate;
 	
 	public DatabaseMessage(String id, String data) {
 		this.id = id;
@@ -90,5 +90,19 @@ public class DatabaseMessage {
 	 */
 	public void setSender(String sender) {
 		this.sender = sender;
+	}
+
+	/**
+	 * @return the internalData
+	 */
+	public String getInternalDate() {
+		return internalDate;
+	}
+
+	/**
+	 * @param internalData the internalData to set
+	 */
+	public void setInternalDate(String internalDate) {
+		this.internalDate = internalDate;
 	}
 }
