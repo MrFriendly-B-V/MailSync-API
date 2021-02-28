@@ -15,6 +15,8 @@ steps:
 
 - name: Build Docker container
   image: plugins/docker
-  repo: registry.thedutchmc.nl/espogmailsync-api
-  tags: latest
-  registry: registry.thedutchmc.nl
+  settings:
+    repo: registry.thedutchmc.nl/espogmailsync-api
+    tags:
+    - latest
+    registry: registry.thedutchmc.nl
