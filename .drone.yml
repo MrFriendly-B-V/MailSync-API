@@ -17,10 +17,10 @@ steps:
 - name: Build Docker container
   image: plugins/docker
   settings:
-    repo: registry.thedutchmc.nl/espogmailsync-api
+    repo: docker-registry.k8s.array21.dev/espogmailsync-api
     tags:
     - latest
-    registry: registry.thedutchmc.nl
+    registry: docker-registry.k8s.array21.dev
 
 - name: deploy
   image: sinlead/drone-kubectl
@@ -32,7 +32,7 @@ steps:
     kubernetes_token:
       from_secret: k8s_token
   commands:
-    - kubectl set image deployment/espogmailsync-deployment espogmailsync-api=registry.thedutchmc.nl/espogmailsync-api:latest
+    - kubectl set image deployment/espogmailsync espogmailsync-api=docker-registry.k8s.array21.dev/espogmailsync-api:latest -n mrfriendly
 
 - name: slack
   image: plugins/slack
