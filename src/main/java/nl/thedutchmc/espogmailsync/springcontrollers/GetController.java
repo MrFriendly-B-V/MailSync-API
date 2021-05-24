@@ -39,14 +39,15 @@ public class GetController {
 	public String mail(@RequestParam String sessionId, @RequestParam(required = false) String addresses, @RequestParam(required = false) String page) {
 		final Gson gson = new Gson();
 		
-		AuthResponse authResponse = Authentication.isAuthenticated(sessionId);
+		//TODO Auth needs to be re-enabled eventually
+		/*AuthResponse authResponse = Authentication.isAuthenticated(sessionId);
 		if(authResponse == null) {
 			return gson.toJson(new BasicResponse(401));
 		}
 		
 		if(authResponse.getStatus() != 200) {
 			return gson.toJson(new BasicResponse(401));
-		}
+		}*/
 		
 		//Validate that the provided page String is a valid integer
 		//TODO
@@ -134,10 +135,11 @@ public class GetController {
 	public String getActive(@RequestParam String sessionId) {
 		final Gson gson = new Gson();
 		
-		AuthResponse authResponse = Authentication.isAuthenticated(sessionId);
+		//TODO auth needs to be re-enabled eventually
+		/*AuthResponse authResponse = Authentication.isAuthenticated(sessionId);
 		if(authResponse == null) {
 			return gson.toJson(new BasicResponse(401));
-		}
+		}*/
 		
 		//Fetch all user IDs from the database
 		List<String> userIds = new ArrayList<>();
