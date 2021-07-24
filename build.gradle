@@ -4,36 +4,27 @@ plugins {
     id 'java'
     id 'eclipse'
     id 'application'
-	id 'org.springframework.boot' version '2.2.2.RELEASE'
-	id 'io.spring.dependency-management' version '1.0.8.RELEASE'
+	id 'org.springframework.boot' version '2.5.3'
+	id 'io.spring.dependency-management' version '1.0.11.RELEASE'
     id 'com.github.johnrengelman.shadow' version '7.0.0'
 }
 
 repositories {
     mavenCentral()
-
-    maven { url 'https://jitpack.io' }
     maven { url 'https://mvnrepository.com/artifact/org.springframework/spring-web' }
 }
 
 dependencies {    
-    //JSON
     implementation 'org.json:json:20200518'
   	implementation 'com.google.code.gson:gson:2.8.6'
-
-    //HttpLib
-    implementation 'com.github.TheDutchMC:HttpLib:1.1'
+    implementation 'dev.array21:httplib:1.2.1'
+	implementation 'org.springframework.boot:spring-boot-starter-web'
 	
-	//All this is Spring
-	implementation 'org.springframework:spring-web:5.2.6.RELEASE'
-	implementation 'org.springframework.boot:spring-boot-starter-web:2.2.6.RELEASE'
-	
-	//MySQL Connector
     implementation ("mysql:mysql-connector-java:8.0.21") {
     	exclude module: 'protobuf-java'
     }
 }
 
 application {
-    mainClassName = 'nl.mrfriendly.espogmailsync.App'
+    mainClassName = 'nl.mrfriendly.mailsync.App'
 }

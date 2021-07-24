@@ -1,13 +1,15 @@
-FROM ubuntu
+FROM gradle:7.1.1-jdk16 AS BUILDER
+COPY ./src /usr/src/mailsync/src
+COPY build.gradle /usr/src/mailsync
+COPY settings.gradle /usr/src/mailsync
 
-ARG DEBIAN_FRONTEND=noninteractive
+WORKDIR /usr/src/mailsync
 
-RUN apt-get update -y
-RUN apt-get install -y \
-        openjdk-11-jre-headless
+RUN gradle build
 
-COPY ./build/libs/*-all.jar /app/EspoGmailSync.jar
+FROM adoptopenjdk/openjdk16:jre-16.0.1_9-alpine
+RUN apk add --no-cache ca-certificates
+COPY --from=BUILDER /usr/src/mailsync/build/libs/mailsync-all.jar /usr/jar/mailsync.jar
 
-ENV JVM_MEM=2048M
-
-CMD ["sh", "-c", "/usr/bin/java -Xmx${JVM_MEM} -jar /app/EspoGmailSync.jar"]
+EXPOSE 8080
+ENTRYPOINT [ "java", "-jar", "/usr/jar/mailsync.jar" ]
