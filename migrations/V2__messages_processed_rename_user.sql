@@ -1,0 +1,1 @@
+ALTER TABLE messages_processed CHANGE user user_id VARCHAR(32) NOT NULL

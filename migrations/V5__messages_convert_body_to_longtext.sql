@@ -1,0 +1,1 @@
+ALTER TABLE messages CHANGE body body LONGTEXT

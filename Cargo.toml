@@ -1,0 +1,69 @@
+[package]
+name = "mailsync"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+actix-web = "3.3.2"
+actix-cors = "0.5.4"
+log = "0.4.14"
+base64 = "0.13.0"
+actix-governor = "0.2.4"
+envy = "0.4.2"
+anyhow = "1.0.44"
+mailparse = "0.13.6"
+thiserror = "1.0.30"
+lazy_static = "1.4.0"
+
+[dependencies.sea-query]
+version = "0.18.1"
+features = ["backend-mysql"]
+
+[dependencies.reqwest]
+version = "0.11.6"
+default-features = false
+features = ["json", "rustls-tls"]
+
+[dependencies.refinery]
+version = "0.7.0"
+features = ["mysql-notls"]
+
+[dependencies.log4rs]
+version = "1.0.0"
+default-features = false
+features = ["console_appender", "config_parsing", "yaml_format"]
+
+[dependencies.serde]
+version = "1.0.130"
+features = ["derive"]
+
+[dependencies.authlander-client]
+git = "https://github.com/MrFriendly-B-V/AuthlanderClient-rs.git"
+tag = "0.1.0"
+
+[dependencies.mysql]
+version = "21.0.2"
+default-features = false
+
+[dependencies.tokio]
+version = "1.13.0"
+default-features = false
+features = ["rt", "rt-multi-thread"]
+
+[dependencies.espocrm-rs]
+git = "https://github.com/TheDutchMC/espocrm-rs"
+branch = "master"
+
+[patch.crates-io.mysql]
+git = "https://github.com/TheDutchMC/rust-mysql-simple"
+
+[patch.crates-io.refinery]
+git = "https://github.com/TheDutchMC/refinery"
+
+[patch.crates-io.refinery-core]
+git = "https://github.com/TheDutchMC/refinery"
+
+[profile.release]
+lto = true
+panic = "abort"
+
