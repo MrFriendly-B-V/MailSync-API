@@ -74,7 +74,6 @@ pub async fn main() -> std::io::Result<()> {
     debug!("Starting actix server");
     HttpServer::new(move || {
         let app = App::new()
-            .wrap(actix_web::middleware::Logger::default())
             .wrap(actix_web::middleware::NormalizePath::new(TrailingSlash::Trim))
             .wrap(actix_cors::Cors::permissive())
             .wrap(actix_web::middleware::Logger::default())
