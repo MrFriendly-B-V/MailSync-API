@@ -4,13 +4,6 @@ appenders:
     kind: console
 
 root:
-  level: warn
+  level: info
   appenders:
     - stdout
-
-loggers:
-  mailsync:
-    level: debug
-    appenders:
-      - stdout
-    additive: false
