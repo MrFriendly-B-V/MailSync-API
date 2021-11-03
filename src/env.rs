@@ -7,7 +7,7 @@ use anyhow::Result;
 pub struct Env {
     espo_api_key:       String,
     espo_api_secret:    String,
-    espo_host:          String,
+    pub espo_host:          String,
     pub authlander_key:     String,
     pub authlander_host:    String,
     mysql_host:         String,

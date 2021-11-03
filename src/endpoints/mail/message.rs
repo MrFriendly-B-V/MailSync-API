@@ -2,10 +2,11 @@ use crate::RT;
 use crate::error::{Error, HttpResult};
 use crate::env::AppData;
 use crate::check_scopes;
-use mysql::prelude::Queryable;
-use mysql::{Row, params};
+
 use actix_web::{web, get, HttpRequest, HttpResponse};
 use serde::{Deserialize, Serialize};
+use mysql::prelude::Queryable;
+use mysql::{Row, params};
 use std::sync::Arc;
 use log::debug;
 
@@ -45,6 +46,7 @@ impl Default for Format {
 #[get("/mail/message/{message_id}")]
 pub async fn message(data: web::Data<Arc<AppData>>, req: HttpRequest, query_params: web::Query<QueryParams>, web::Path(message_id): web::Path<String>) -> HttpResult {
     let _guard = RT.enter();
+
     check_scopes!(req, data, REQUIRED_SCOPES);
 
     debug!("Creating mysql connection");
@@ -57,7 +59,6 @@ pub async fn message(data: web::Data<Arc<AppData>>, req: HttpRequest, query_para
         Some(r) => r,
         None => return Err(Error::NotFound("The requested message does not exist"))
     };
-
 
     debug!("Requested body format is {:?}", query_params.format);
     let body_plain: Option<String> = row.get("body");

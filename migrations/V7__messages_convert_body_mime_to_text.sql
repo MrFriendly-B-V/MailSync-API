@@ -1,0 +1,1 @@
+ALTER TABLE messages CHANGE body_mime body_mime TEXT NOT NULL

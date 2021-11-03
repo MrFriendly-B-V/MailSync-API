@@ -1,6 +1,7 @@
 use crate::env::{AppData, Env};
 use crate::api::gmail::{self, ListUserMessagesQuery};
 use crate::RT;
+use crate::try_rl;
 
 use std::collections::HashSet;
 use std::sync::Arc;
@@ -9,6 +10,8 @@ use mysql::prelude::Queryable;
 use mailparse::MailHeaderMap;
 use anyhow::Result;
 use log::{debug, error, info};
+use ratelimit_meter::{DirectRateLimiter, LeakyBucket};
+use nonzero_ext::nonzero;
 
 const FAILED_INTERVAL: u64 = 300; // 5 minutes
 const SUCCESS_INTERVAL: u64 = 1800; // 30 minutes
@@ -20,43 +23,37 @@ pub fn query_inbox(appdata: Arc<AppData>) {
     std::thread::spawn(move || {
         let _guard = RT.enter();
         loop {
-            info!("Starting new round of inbox querying.");
-
-            let env = &appdata.env;
-            debug!("Creating mysql connection");
-            let mut conn = match appdata.pool.get_conn() {
-                Ok(c) => c,
+            match RT.block_on(do_inbox_query(appdata.clone())) {
+                Ok(_) => {},
                 Err(e) => {
-                    error!("Failed to get mysql connection: {:?}", e);
+                    error!("Failed to perform inbox query: {:?}", e);
                     sleep(FAILED_INTERVAL);
                     continue;
-                }
-            };
-
-            debug!("Fetching users");
-            let users = match get_users(&mut conn) {
-                Ok(u) => u,
-                Err(e) => {
-                    error!("Failed to fetch users: {:?}", e);
-                    sleep(FAILED_INTERVAL);
-                    continue;
-                }
-            };
-
-            for user in users {
-                debug!("Querying for user {}", &user);
-                match RT.block_on(do_query(&user, env, &mut conn)) {
-                    Ok(_) => {},
-                    Err(e) => {
-                        error!("Failed to query inbox for {}: {:?}", &user, e);
-                        sleep(FAILED_INTERVAL);
-                        continue;
-                    }
                 }
             }
             sleep(SUCCESS_INTERVAL);
         }
     });
+}
+
+async fn do_inbox_query(data: Arc<AppData>) -> Result<()> {
+    info!("Starting new round of inbox querying.");
+
+    let mut rl_bucket = DirectRateLimiter::<LeakyBucket>::per_second(nonzero!(10u32));
+
+    let env = &data.env;
+    debug!("Creating mysql connection");
+    let mut conn = data.pool.get_conn()?;
+
+    debug!("Fetching users");
+    let users = get_users(&mut conn)?;
+
+    for user in users {
+        debug!("Querying for user {}", &user);
+        process_inbox(&user, env, &mut conn, &mut rl_bucket).await?;
+    }
+
+    Ok(())
 }
 
 /// Fetch the users that should have their inbox fetched
@@ -75,11 +72,11 @@ fn sleep(s: u64) {
 }
 
 /// Query a User's inbox and insert it into the database
-async fn do_query(user_id: &str, env: &Env, conn: &mut PooledConn) -> Result<()> {
+async fn process_inbox(user_id: &str, env: &Env, conn: &mut PooledConn, rl_bucket: &mut DirectRateLimiter) -> Result<()> {
     debug!("Fething processed messages for {}", user_id);
     let already_processed = get_processed_messages(user_id, conn)?;
     debug!("Indexing inbox for {}", user_id);
-    let inbox = index_inbox(user_id, env).await?;
+    let inbox = index_inbox(user_id, env, rl_bucket).await?;
 
     let already_processed: HashSet<String> = already_processed.into_iter().collect();
     let inbox: HashSet<String> = inbox.into_iter().collect();
@@ -89,7 +86,7 @@ async fn do_query(user_id: &str, env: &Env, conn: &mut PooledConn) -> Result<()>
 
     for id in delta {
         debug!("Fetching message {} for user {}", id, user_id);
-        let message = get_message(user_id, &id, env).await?;
+        let message = try_rl!(rl_bucket, get_message(user_id, &id, env)).await?;
         insert_message(user_id, &id, message, conn)?;
     }
 
@@ -103,7 +100,7 @@ struct Message {
     bcc:        Option<String>,
     subject:    Option<String>,
     body:       Option<String>,
-    body_mime:  &'static str,
+    body_mime:  String,
     timestamp:  i64,
 }
 
@@ -148,6 +145,9 @@ async fn get_message(user_id: &str, message_id: &str, env: &Env) -> Result<Messa
     let raw = base64::decode(raw)?;
 
     let parsed = mailparse::parse_mail(&raw)?;
+    let opt_body = parsed.get_body()?;
+    let ctype = parsed.ctype.mimetype;
+
     let (body, mimetype) = if !parsed.subparts.is_empty() {
         let mut maybe_html = None;
         let mut maybe_text = None;
@@ -166,18 +166,33 @@ async fn get_message(user_id: &str, message_id: &str, env: &Env) -> Result<Messa
 
         // If there's an HTML body, we use that, else we use a text body, if both dont exist we use an empty String
         match (maybe_html, maybe_text) {
-            (Some(a), Some(_)) | (Some(a), None) => (a, "text/html"),
-            (None, Some(a)) => (a, "text/plain"),
-            (None, None) => (String::default(), "empty")
+            (Some(a), Some(_)) | (Some(a), None) => (a, String::from("text/html")),
+            (None, Some(a)) => (a, String::from("text/plain")),
+            (None, None) => (opt_body, ctype)
         }
     } else {
-        (String::default(), "empty")
+        (opt_body, ctype)
     };
 
     let headers = parsed.headers;
+
+    let sender = match headers.get_first_value("From") {
+        Some(s) => Some(s
+            .replace('"', "")
+            .replace('\'', "")),
+        None => None
+    };
+
+    let receiver = match headers.get_first_value("To") {
+        Some(s) => Some(s
+            .replace('"', "")
+            .replace('\'', "")),
+        None => None
+    };
+
     Ok(Message {
-        sender: headers.get_first_value("From"),
-        receiver: headers.get_first_value("To"),
+        sender,
+        receiver,
         cc: headers.get_first_value("Cc"),
         bcc: headers.get_first_value("Bcc"),
         subject: headers.get_first_value("Subject"),
@@ -188,7 +203,7 @@ async fn get_message(user_id: &str, message_id: &str, env: &Env) -> Result<Messa
 }
 
 /// Index a user's inbox from GMail
-async fn index_inbox(user_id: &str, env: &Env) -> Result<Vec<String>> {
+async fn index_inbox(user_id: &str, env: &Env, rl_bucket: &mut DirectRateLimiter) -> Result<Vec<String>> {
     let mut result: Vec<String> = Vec::new();
     let mut page_token: Option<String> = None;
 
@@ -196,7 +211,9 @@ async fn index_inbox(user_id: &str, env: &Env) -> Result<Vec<String>> {
     loop {
         debug!("Reading inbox page {} for user {}", page_counter, user_id);
 
-        let index = gmail::list_user_messages(env, user_id, &ListUserMessagesQuery { max_results: Some(100), page_token: page_token.as_deref() }).await?;
+        let query = ListUserMessagesQuery { max_results: Some(100), page_token: page_token.as_deref() };
+        let index = try_rl!(rl_bucket, gmail::list_user_messages(env, user_id, &query)).await?;
+
         page_token = index.next_page_token;
         let mut ids: Vec<String> = index.messages.into_iter()
             .map(|f| f.id)

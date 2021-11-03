@@ -1,4 +1,3 @@
-use std::fmt::Write;
 use crate::env::AppData;
 use crate::check_scopes;
 use crate::error::HttpResult;
@@ -6,13 +5,14 @@ use crate::RT;
 
 use actix_web::{web, get, HttpRequest, HttpResponse};
 use sea_query::{Query, any, Expr, MysqlQueryBuilder};
+use serde::{Serialize, Deserialize};
 use mysql::prelude::Queryable;
 use mysql::{Row, PooledConn};
-use serde::{Serialize, Deserialize};
 use std::ops::Deref;
+use std::fmt::Write;
 use std::sync::Arc;
-use log::debug;
 use anyhow::Result;
+use log::debug;
 
 const DEFAULT_PAGE: i32 = 0;
 const DEFAULT_PAGE_SIZE: i32 = 50;
@@ -49,12 +49,14 @@ pub struct QueryParams {
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum Order {
     Asc,
     Desc,
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum OrderBy {
     Subject,
     To,
@@ -114,22 +116,28 @@ fn get_messages(conn: &mut PooledConn, query_params: &QueryParams) -> Result<Vec
 
     match (&query_params.page, &query_params.page_size) {
         (Some(page), Some(page_size)) => {
-            debug!("Offset: {}", page * page_size);
-            select_stmt
-                .offset((page * page_size) as u64)
-                .limit(*page_size as u64);
+            if *page > 0 && *page_size > 0 {
+                debug!("Offset: {}", page * page_size);
+                select_stmt
+                    .offset((page * page_size) as u64)
+                    .limit(*page_size as u64);
+            }
         },
         (Some(page), None) => {
-            debug!("Offset: {}", page * DEFAULT_PAGE_SIZE);
-            select_stmt
-                .offset((page * DEFAULT_PAGE_SIZE) as u64)
-                .limit(DEFAULT_PAGE_SIZE as u64);
+            if *page > 0 {
+                debug!("Offset: {}", page * DEFAULT_PAGE_SIZE);
+                select_stmt
+                    .offset((page * DEFAULT_PAGE_SIZE) as u64)
+                    .limit(DEFAULT_PAGE_SIZE as u64);
+            }
         },
         (None, Some(page_size)) => {
-            debug!("Offset: {}", page_size * DEFAULT_PAGE);
-            select_stmt
-                .offset((page_size * DEFAULT_PAGE) as u64)
-                .limit(*page_size as u64);
+            if *page_size > 0 {
+                debug!("Offset: {}", page_size * DEFAULT_PAGE);
+                select_stmt
+                    .offset((page_size * DEFAULT_PAGE) as u64)
+                    .limit(*page_size as u64);
+            }
         },
         (None, None) => {
             debug!("Offset: {}", DEFAULT_PAGE * DEFAULT_PAGE_SIZE);

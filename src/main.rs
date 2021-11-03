@@ -55,10 +55,13 @@ pub async fn main() -> std::io::Result<()> {
     debug!("Starting inbox thread");
     threads::inbox::query_inbox(appdata_arc.clone());
 
+    debug!("Starting espo contacts thread");
+    threads::espo_contacts::espo_contacts(appdata_arc.clone());
+
     debug!("Creating Governor config");
     let gov_conf = GovernorConfigBuilder::default()
-        .per_second(2)
-        .burst_size(5)
+        .per_second(5)
+        .burst_size(10)
         .finish()
         .unwrap(); // Save because the config is hardcoded
 
@@ -69,9 +72,12 @@ pub async fn main() -> std::io::Result<()> {
             .wrap(actix_web::middleware::NormalizePath::new(TrailingSlash::Trim))
             .wrap(actix_cors::Cors::permissive())
             .wrap(actix_governor::Governor::new(&gov_conf))
+            .wrap(actix_web::middleware::Logger::default())
             .data(appdata_arc.clone())
             .service(endpoints::user::add::add)
             .service(endpoints::mail::inbox::inbox)
             .service(endpoints::mail::message::message)
+            .service(endpoints::settings::settings)
+            .service(endpoints::settings::update::update)
     }).bind("[::]:8080")?.run().await
 }

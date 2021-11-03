@@ -14,6 +14,8 @@ anyhow = "1.0.44"
 mailparse = "0.13.6"
 thiserror = "1.0.30"
 lazy_static = "1.4.0"
+ratelimit_meter = "5.0.0"
+nonzero_ext = "0.3.0"
 
 [dependencies.sea-query]
 version = "0.18.1"
@@ -66,4 +68,3 @@ git = "https://github.com/TheDutchMC/refinery"
 [profile.release]
 lto = true
 panic = "abort"
-

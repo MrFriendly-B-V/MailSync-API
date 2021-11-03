@@ -1,0 +1,1 @@
+ALTER TABLE configs ADD rule_type VARCHAR(32) NOT NULL DEFAULT 'Url'

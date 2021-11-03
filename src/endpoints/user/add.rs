@@ -1,11 +1,12 @@
-use std::sync::Arc;
-use actix_web::{web, post, HttpResponse, HttpRequest};
-use serde::Deserialize;
-use mysql::prelude::Queryable;
-use mysql::{Row, params};
 use crate::env::AppData;
 use crate::RT;
 use crate::error::{Error, HttpResult};
+
+use actix_web::{web, post, HttpResponse, HttpRequest};
+use mysql::prelude::Queryable;
+use mysql::{Row, params};
+use serde::Deserialize;
+use std::sync::Arc;
 use log::debug;
 
 #[derive(Deserialize)]
