@@ -81,6 +81,8 @@ pub async fn main() -> std::io::Result<()> {
             .service(actix_web::web::scope("/api/v1")
                 .wrap(actix_governor::Governor::new(&gov_conf))
                 .service(endpoints::user::add::add)
+                .service(endpoints::user::list::list)
+                .service(endpoints::user::remove::remove)
                 .service(endpoints::mail::inbox::inbox)
                 .service(endpoints::mail::message::message)
                 .service(endpoints::settings::settings)

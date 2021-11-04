@@ -27,6 +27,8 @@ pub enum Error {
     Mysql(#[from] mysql::Error),
     #[error("Internal Server Error")]
     Anyhow(#[from] anyhow::Error),
+    #[error("Internal Server Error")]
+    Reqwest(#[from] reqwest::Error),
     #[error("The requested resource was not found: {0}")]
     NotFound(&'static str),
     #[error("The user did not provide an authorization token, their session has expired, or is not authorized to access the requested resource")]
@@ -48,7 +50,7 @@ impl Error {
 impl ResponseError for Error {
     fn status_code(&self) -> StatusCode {
         match self {
-            Self::Mysql(_)  | Self::Anyhow(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            Self::Mysql(_)  | Self::Anyhow(_) | Self::Reqwest(_) => StatusCode::INTERNAL_SERVER_ERROR,
             Self::NotFound(_) => StatusCode::NOT_FOUND,
             Self::Unauthorized => StatusCode::UNAUTHORIZED,
             Self::Conflict(_) => StatusCode::CONFLICT,

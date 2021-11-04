@@ -14,7 +14,7 @@ pub struct Query {
     user_id:    String
 }
 
-const REQUIRED_SCOPES: [&str; 1] = ["mrfriendly.mailsync.user.add"];
+const REQUIRED_SCOPES: [&str; 1] = ["mrfriendly.mailsync.admin"];
 
 #[post("/user/add")]
 pub async fn add(data: web::Data<Arc<AppData>>, query: web::Query<Query>, req: HttpRequest) -> HttpResult {
