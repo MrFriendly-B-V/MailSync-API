@@ -70,7 +70,7 @@ steps:
   - touch $HOME/.ssh/config
   - echo "Host *\n\tStrictHostKeyChecking no" > $HOME/.ssh/config
   
-  - "ssh droneci@kube-ssh.intern.array21.dev kubectl set image -n mrfriendly deployment/mailsync mailsync=docker-registry.k8s.array21.dev/mailsync:${DRONE_TAG}"
+  - "ssh droneci@kube-ssh.intern.array21.dev kubectl set image -n mrfriendly deployment/mailsync mailsync=docker-registry.k8s.array21.dev/mrfriendly-mailsync:${DRONE_TAG}"
 
 - name: Slack notifications
   image: plugins/slack
