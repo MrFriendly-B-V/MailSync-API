@@ -2,6 +2,7 @@ use anyhow::Result;
 use crate::{RT, RQ};
 use serde::{Deserialize, Serialize};
 use crate::env::Env;
+use crate::error::Error;
 
 const PATH: &str = "https://gmail.googleapis.com/gmail/v1";
 
@@ -64,13 +65,20 @@ pub struct ListUserMessagesQuery<'a> {
     pub page_token:     Option<&'a str>,
 }
 
-pub async fn list_user_messages<A: AsRef<str>>(env: &Env, user_id: A, query: &ListUserMessagesQuery<'_>) -> Result<ListUserMessages> {
+pub async fn list_user_messages<A: AsRef<str>>(env: &Env, user_id: A, query: &ListUserMessagesQuery<'_>) -> std::result::Result<ListUserMessages, Error> {
     let _guard = RT.enter();
-    let response = RQ.get(format!("{}/users/{}/messages", PATH, user_id.as_ref()))
+    let req = RQ.get(format!("{}/users/{}/messages", PATH, user_id.as_ref()))
         .header("Authorization", format!("Bearer {}", get_user_token(env, user_id.as_ref()).await?))
         .query(query)
         .send()
-        .await?
+        .await?;
+
+    if req.status().as_u16() == 401 || req.status().as_u16() == 403 {
+        log::warn!("User '{}' does not have the required scopes to allow MailSync to list their GMail messages.", user_id.as_ref());
+        return Err(Error::Gmail);
+    }
+
+    let response = req
         .json()
         .await?;
 
