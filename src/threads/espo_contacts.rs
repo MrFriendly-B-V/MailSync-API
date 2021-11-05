@@ -4,7 +4,7 @@ use crate::env::AppData;
 use crate::RT;
 use crate::try_rl;
 use anyhow::Result;
-use log::{debug, error};
+use log::{warn, debug, error};
 use mysql::{PooledConn, Row};
 use mysql::prelude::Queryable;
 use ratelimit_meter::{DirectRateLimiter, LeakyBucket};
@@ -20,6 +20,9 @@ const SUCCESS_INTERVAL: u64 = 1800; // 30 minutes
 /// The path where the inbox is located. This will be joined with the basepath and the query parameters
 const INBOX_PATH: &str = "/";
 
+const REQUESTS_PER_SECOND: u32 = 2;
+
+/// The Espo contact loop. This loop will fetch all contacts and update their MailSync link periodically
 pub fn espo_contacts(data: Arc<AppData>) {
     std::thread::spawn(move || {
         let _guard = RT.enter();
@@ -46,7 +49,7 @@ pub fn espo_contacts(data: Arc<AppData>) {
 async fn update_contacts(data: Arc<AppData>) -> Result<()> {
     debug!("Updating contacts");
 
-    let mut rl_bucket = DirectRateLimiter::<LeakyBucket>::per_second(nonzero!(2u32));
+    let mut rl_bucket = DirectRateLimiter::<LeakyBucket>::per_second(nonzero!(REQUESTS_PER_SECOND));
 
     let contacts = fetch_contacts(&data.espo, &mut rl_bucket).await?;
     let frontend_basepath = get_frontend_basepath(&mut data.pool.get_conn()?)?;
@@ -56,7 +59,13 @@ async fn update_contacts(data: Arc<AppData>) -> Result<()> {
             // We don't want to throw Espo to death with too many requests
             // Hence we're using a ratelimiter
             let url = format!("{}{}?ref={}", frontend_basepath, INBOX_PATH, &email);
-            try_rl!(rl_bucket, update_contact_mailsync_url(&data.espo, &contact, &url)).await?;
+            match try_rl!(rl_bucket, update_contact_mailsync_url(&data.espo, &contact, &url)).await {
+                Ok(_) => {},
+                Err(e) => {
+                    warn!("Failed to update MailSync URL for contact '{}': {:?}", &contact.id, &e);
+                    continue;
+                }
+            }
         } else {
             log::warn!("Contact '{}' is missing an E-Mail address", &contact.id);
         }

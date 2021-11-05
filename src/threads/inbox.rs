@@ -12,9 +12,16 @@ use anyhow::Result;
 use log::{debug, error, info};
 use ratelimit_meter::{DirectRateLimiter, LeakyBucket};
 use nonzero_ext::nonzero;
+use log::warn;
 
+/// Time in between loop iterations in seconds, where the previous iteration did not complete successfully.
 const FAILED_INTERVAL: u64 = 300; // 5 minutes
+
+/// Time in between loops in seconds, where the previous iteration completed successfuly.
 const SUCCESS_INTERVAL: u64 = 1800; // 30 minutes
+
+/// Amount of requests to the GMail API per second
+const REQUESTS_PER_SECOND: u32 = 10;
 
 /// Inbox querying loop
 ///
@@ -36,10 +43,11 @@ pub fn query_inbox(appdata: Arc<AppData>) {
     });
 }
 
+/// Query the inbox of all registered users
 async fn do_inbox_query(data: Arc<AppData>) -> Result<()> {
     info!("Starting new round of inbox querying.");
 
-    let mut rl_bucket = DirectRateLimiter::<LeakyBucket>::per_second(nonzero!(10u32));
+    let mut rl_bucket = DirectRateLimiter::<LeakyBucket>::per_second(nonzero!(REQUESTS_PER_SECOND));
 
     let env = &data.env;
     debug!("Creating mysql connection");
@@ -50,7 +58,13 @@ async fn do_inbox_query(data: Arc<AppData>) -> Result<()> {
 
     for user in users {
         debug!("Querying for user {}", &user);
-        process_inbox(&user, env, &mut conn, &mut rl_bucket).await?;
+        match process_inbox(&user, env, &mut conn, &mut rl_bucket).await {
+            Ok(_) => {},
+            Err(e) => {
+                warn!("Failed to query inbox for user '{}': {:?}", &user, &e);
+                continue;
+            }
+        }
     }
 
     Ok(())
@@ -86,7 +100,14 @@ async fn process_inbox(user_id: &str, env: &Env, conn: &mut PooledConn, rl_bucke
 
     for id in delta {
         debug!("Fetching message {} for user {}", id, user_id);
-        let message = try_rl!(rl_bucket, get_message(user_id, &id, env)).await?;
+        let message = match try_rl!(rl_bucket, get_message(user_id, &id, env)).await {
+            Ok(m) => m,
+            Err(e) => {
+                warn!("Failed to fetch message '{}' for user '{}': {:?}", &id, &user_id, &e);
+                continue;
+            }
+        };
+
         insert_message(user_id, &id, message, conn)?;
     }
 

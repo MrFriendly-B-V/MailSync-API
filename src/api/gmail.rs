@@ -19,9 +19,6 @@ async fn get_user_token(env: &Env, user_id: &str) -> Result<String> {
 pub struct Message {
     pub id:             String,
     pub thread_id:      String,
-    pub label_ids:      Vec<String>,
-    pub snippet:        Option<String>,
-    pub history_id:     Option<String>,
     pub internal_date:  String,
     pub raw:            String
 }
